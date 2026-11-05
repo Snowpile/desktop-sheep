@@ -36,23 +36,23 @@ import Testing
 
     @Test func disabledBehaviorsAreNeverChosen() {
         var settings = PetSettings()
-        for b in [Behavior.run, .sleep, .eat, .bleat] { settings.setEnabled(b, false) }
-        var config = SheepConfig()
+        for b in [Behavior.run, .sleep, .eat, .call] { settings.setEnabled(b, false) }
+        var config = PetConfig()
         settings.apply(to: &config)
         let world = World(screens: [Rect(x: 0, y: 0, width: 1000, height: 700)])
-        var sheep = Sheep(x: 500, y: 0, behavior: .stand, duration: 0.1, config: config)
+        var sheep = Pet(x: 500, y: 0, behavior: .stand, duration: 0.1, config: config)
         var rng = SeededGenerator(seed: 5)
         var seen = Set<Behavior>()
         for _ in 0..<(60 * 60 * 10) {
             sheep.step(dt: 1.0 / 60, world: world, rng: &rng)
             seen.insert(sheep.behavior)
         }
-        #expect(seen.isDisjoint(with: [.run, .sleep, .eat, .bleat]))
+        #expect(seen.isDisjoint(with: [.run, .sleep, .eat, .call]))
         #expect(seen.contains(.walk) && seen.contains(.sit))
     }
 
     @Test func disablingCurrentBehaviorStopsIt() {
-        var sheep = Sheep(x: 500, y: 0, behavior: .eat, duration: 100)
+        var sheep = Pet(x: 500, y: 0, behavior: .eat, duration: 100)
         var config = sheep.config
         config.enabledBehaviors.remove(.eat)
         sheep.apply(config)
@@ -61,7 +61,7 @@ import Testing
 
     @Test func speedMultiplierMakesWalkingFaster() {
         let world = World(screens: [Rect(x: 0, y: 0, width: 5000, height: 700)])
-        var slow = Sheep(x: 1000, y: 0, facing: .right, behavior: .walk, duration: 100)
+        var slow = Pet(x: 1000, y: 0, facing: .right, behavior: .walk, duration: 100)
         var fast = slow
         var config = fast.config
         config.speedMultiplier = 2

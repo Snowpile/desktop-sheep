@@ -1,7 +1,7 @@
 # Desktop Sheep
 
-A small pixel-art sheep that lives on your macOS desktop, inspired by classic 90s desktop pets.
-All art and code are original.
+A small pixel-art sheep (or cat, dog, bunny or red panda) that lives on your macOS desktop,
+inspired by classic 90s desktop pets. All art and code are original.
 
 The sheep wanders along the bottom of the screen (just above the Dock) and along the top edges of
 your windows. It walks, runs, sits, falls asleep, grazes and bleats, and tumbles down when the
@@ -10,13 +10,17 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
 ## Features
 
 - Transparent, borderless, always-on-top sheep; clicks pass through everywhere except the sheep.
-- Visible on all Spaces, no Dock icon. A menu-bar sheep offers **Add Sheep**, **Remove Sheep**,
-  **Walk on Windows**, **Settings…** and **Quit**.
-- Settings window: number of pets, entry style, walk on windows, speed, and which idle behaviors
+- Visible on all Spaces, no Dock icon. A menu-bar sheep offers **Add Pet**, **Remove Pet**,
+  **Animal (All Pets)**, **Walk on Windows**, **Settings…** and **Quit**.
+- Five animals with their own flavor: the sheep bleats and grazes, the cat meows and eats fish,
+  the dog barks and chews a bone, the bunny hops and nibbles a carrot, the red panda chirps and
+  munches bamboo. Pick one for all pets (or **Mixed**) from the menu or Settings; right-click a
+  single pet to change just that one.
+- Settings window: animal, number of pets, entry style, walk on windows, speed, and which idle behaviors
   are allowed. Choices are saved in UserDefaults (`com.snowpile.desktop-sheep`) and restored on launch.
 - Gravity, landing, throwing, turning around at screen edges.
 - Multi-monitor aware: sheep cross between displays that line up, and turn back otherwise.
-- Random behavior state machine: walk, run, sit, sleep, eat grass, bleat (visual only).
+- Random behavior state machine: walk, run, sit, sleep, eat, call (bleat/meow/bark…, visual only).
 - Pixel art is drawn at runtime from code (`Sources/SheepCore/SheepArt.swift`): a 40x32 pet in a
   48x48 sprite (room for effects), shown at 2x, with blinking, ear flicks, a wagging tail,
   wool highlights and a soft ground shadow.

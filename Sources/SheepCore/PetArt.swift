@@ -1,4 +1,4 @@
-/// An indexed-color pixel image. Index 0 is transparent; see `SheepArt.palette`.
+/// An indexed-color pixel image. Index 0 is transparent; see `PetArt.palette`.
 ///
 /// Drawing goes through an origin offset so a pet can be drawn in its own 40x32 "body space"
 /// while effects (parachutes, flames, z's) extend above and around it.
@@ -71,7 +71,7 @@ public struct Pose: Hashable, Sendable {
         case dangling(wiggle: Int)
     }
     public enum Eyes: Hashable, Sendable { case open, closed, wide, happy }
-    public enum Effect: Hashable, Sendable { case none, zzz(Int), bleat(Int), grass(Int) }
+    public enum Effect: Hashable, Sendable { case none, zzz(Int), call(Int), food(Int) }
 
     public var legs: Legs = .standing(dx: [0, 0, 0, 0], lifted: [false, false, false, false])
     public var bodyDY = 0
@@ -83,6 +83,8 @@ public struct Pose: Hashable, Sendable {
     public var earUp = false
     /// Tail offset in pixels (wag).
     public var tailDY = 0
+    /// Whole pet raised off the ground by this many pixels (hops); the shadow stays put.
+    public var lift = 0
     /// Soft shadow on the ground (only while standing on something).
     public var shadow = true
     public var effect: Effect = .none
@@ -91,7 +93,7 @@ public struct Pose: Hashable, Sendable {
 }
 
 /// Original pixel-art pets, drawn from simple shapes at runtime. They face right; mirror for left.
-public enum SheepArt {
+public enum PetArt {
     /// Full sprite size, including room for effects above the pet.
     public static let width = 48
     public static let height = 48
@@ -114,6 +116,20 @@ public enum SheepArt {
         (0x9C, 0xC4, 0xFF, 255), // 9 dream blue
         (0x10, 0x10, 0x18, 70),  // 10 ground shadow (translucent)
         (0x6E, 0x63, 0x73, 255), // 11 face highlight
+        (0xE9, 0x9A, 0x4E, 255), // 12 cat orange
+        (0xBF, 0x6A, 0x2C, 255), // 13 cat stripes
+        (0xFB, 0xEC, 0xD5, 255), // 14 cream
+        (0xB9, 0x82, 0x4C, 255), // 15 dog brown
+        (0x6F, 0x48, 0x2B, 255), // 16 dog dark brown
+        (0xC4, 0xBE, 0xCA, 255), // 17 bunny gray
+        (0x93, 0x8B, 0x9C, 255), // 18 bunny dark gray
+        (0xC8, 0x52, 0x2B, 255), // 19 red panda rust
+        (0x4A, 0x22, 0x18, 255), // 20 red panda dark
+        (0xD8, 0x3C, 0x4A, 255), // 21 collar red
+        (0xF0, 0x84, 0x22, 255), // 22 carrot orange
+        (0x7F, 0xB7, 0xD9, 255), // 23 fish blue
+        (0xF2, 0xE6, 0xCC, 255), // 24 bone
+        (0xE8, 0xB0, 0x7A, 255), // 25 tail ring tan
     ]
 
     /// Fully opaque palette indices (used for hit testing; the shadow doesn't count).
@@ -130,14 +146,16 @@ public enum SheepArt {
         case .run: return 14
         case .sleep: return 1.5
         case .eat: return 4
-        case .bleat: return 4
+        case .call: return 4
         case .dragged: return 6
         case .stand, .sit: return 2
         case .fall: return 1
         }
     }
 
-    public static func frames(for behavior: Behavior) -> [Pose] {
+    public static func frames(for behavior: Behavior, animal: Animal = .sheep) -> [Pose] {
+        if animal.hops, behavior == .walk { return hopFrames(height: 4) }
+        if animal.hops, behavior == .run { return hopFrames(height: 8) }
         switch behavior {
         case .stand: return standFrames
         case .walk: return walkFrames
@@ -145,7 +163,7 @@ public enum SheepArt {
         case .sit: return sitFrames
         case .sleep: return sleepFrames
         case .eat: return eatFrames
-        case .bleat: return bleatFrames
+        case .call: return bleatFrames
         case .fall: return [fallPose]
         case .dragged: return [draggedPose(-1), draggedPose(1)]
         }
@@ -153,8 +171,8 @@ public enum SheepArt {
 
     /// The pose to show `time` seconds into a behavior. `phase` (0..<1) desynchronizes
     /// blinking between pets.
-    public static func pose(for behavior: Behavior, time: Double, phase: Double = 0) -> Pose {
-        let all = frames(for: behavior)
+    public static func pose(for behavior: Behavior, animal: Animal = .sheep, time: Double, phase: Double = 0) -> Pose {
+        let all = frames(for: behavior, animal: animal)
         var pose = all[Int(max(time, 0) * framesPerSecond(behavior)) % all.count]
         if pose.eyes == .open && isBlinking(time: time, phase: phase) { pose.eyes = .closed }
         return pose
@@ -163,6 +181,20 @@ public enum SheepArt {
     /// Blinks for 0.15 s every 3.7 s.
     public static func isBlinking(time: Double, phase: Double) -> Bool {
         (max(time, 0) + phase * 3.7).truncatingRemainder(dividingBy: 3.7) > 3.55
+    }
+
+    /// A bunny hop: crouch, spring up, land. Movement happens only while `lift > 0`.
+    private static func hopFrames(height: Int) -> [Pose] {
+        let lifts = [0, height / 2, height, height, height / 2, 0]
+        return lifts.enumerated().map { i, lift in
+            make {
+                $0.lift = lift
+                $0.legs = lift > 0 ? .spread : .standing(dx: [0, 0, 0, 0], lifted: [false, false, false, false])
+                $0.bodyDY = i == 0 ? 1 : 0
+                $0.earUp = lift > 0
+                $0.tailDY = lift > 0 ? -1 : 0
+            }
+        }
     }
 
     private static func make(_ change: (inout Pose) -> Void) -> Pose {
@@ -245,7 +277,7 @@ public enum SheepArt {
             $0.headDY = i == 3 ? 6 : 7
             $0.headDX = 1
             $0.mouthOpen = i == 1
-            $0.effect = .grass(i)
+            $0.effect = .food(i)
             $0.tailDY = i == 2 ? -1 : 0
         }
     }
@@ -253,9 +285,9 @@ public enum SheepArt {
     private static let bleatFrames: [Pose] = [
         make { $0.headDY = 0 },
         make { $0.headDY = -1; $0.earUp = true },
-        make { $0.headDY = -2; $0.mouthOpen = true; $0.eyes = .happy; $0.earUp = true; $0.effect = .bleat(0) },
-        make { $0.headDY = -2; $0.mouthOpen = true; $0.eyes = .happy; $0.earUp = true; $0.effect = .bleat(1) },
-        make { $0.headDY = -2; $0.mouthOpen = true; $0.eyes = .happy; $0.earUp = true; $0.effect = .bleat(2) },
+        make { $0.headDY = -2; $0.mouthOpen = true; $0.eyes = .happy; $0.earUp = true; $0.effect = .call(0) },
+        make { $0.headDY = -2; $0.mouthOpen = true; $0.eyes = .happy; $0.earUp = true; $0.effect = .call(1) },
+        make { $0.headDY = -2; $0.mouthOpen = true; $0.eyes = .happy; $0.earUp = true; $0.effect = .call(2) },
     ]
 
     private static let fallPose = make {
@@ -283,14 +315,22 @@ public enum SheepArt {
     static let ground = 31
     private static let legX = [8, 11, 21, 24]
 
-    public static func render(_ pose: Pose) -> PixelCanvas {
+    public static func render(_ pose: Pose, animal: Animal = .sheep) -> PixelCanvas {
         var c = PixelCanvas(width: width, height: height)
         c.originX = bodyOrigin.x
         c.originY = bodyOrigin.y
+        if pose.shadow { c.fill(x: 4, y: ground, width: 28, height: 1, 10) }
+        c.originY -= pose.lift
+        if animal == .sheep { renderSheep(&c, pose) } else { renderCritter(&c, pose, animal) }
+        c.originX = 0
+        c.originY = 0
+        return c
+    }
+
+    private static func renderSheep(_ c: inout PixelCanvas, _ pose: Pose) {
         let by = pose.bodyDY
         let hx = pose.headDX + 2, hy = pose.headDY // head pokes out in front of the wool
 
-        if pose.shadow { c.fill(x: 4, y: ground, width: 28, height: 1, 10) }
         if pose.legs != .folded { drawLegs(&c, pose.legs, bodyDY: by) }
 
         // Tail: a small wool puff at the back.
@@ -326,10 +366,7 @@ public enum SheepArt {
             c.plot([(29 + hx, 21 + hy), (30 + hx, 21 + hy), (30 + hx, 22 + hy)], 6)
         }
 
-        drawEffect(&c, pose.effect, headDX: hx, headDY: hy)
-        c.originX = 0
-        c.originY = 0
-        return c
+        drawEffect(&c, pose.effect, animal: .sheep, callX: 33 + hx, callY: 21 + hy, foodX: 30 + hx)
     }
 
     private static func drawFace(_ c: inout PixelCanvas, dx: Int, dy: Int) {
@@ -369,41 +406,42 @@ public enum SheepArt {
         }
     }
 
-    private static func drawLegs(_ c: inout PixelCanvas, _ legs: Pose.Legs, bodyDY: Int) {
+    static func drawLegs(_ c: inout PixelCanvas, _ legs: Pose.Legs, bodyDY: Int,
+                         near: UInt8 = 4, far: UInt8 = 1, paw: UInt8 = 1) {
         let top = 25 + bodyDY
         switch legs {
         case let .standing(dx, lifted):
             for i in 0..<4 {
-                let color: UInt8 = i % 2 == 0 ? 1 : 4 // far legs darker
+                let color = i % 2 == 0 ? far : near // far legs darker
                 let bottom = ground - (lifted[i] ? 1 : 0)
                 for y in top...bottom {
                     let shift = y > top + 2 ? dx[i] : 0
                     c.fill(x: legX[i] + shift, y: y, width: 2, height: 1, color)
                 }
-                c.fill(x: legX[i] + dx[i], y: bottom, width: 2, height: 1, 1) // hoof
+                c.fill(x: legX[i] + dx[i], y: bottom, width: 2, height: 1, paw) // hoof
             }
         case .folded:
             // Front hooves tucked under the chest; back legs hidden by wool.
-            c.fill(x: 21, y: ground - 1, width: 3, height: 2, 1)
-            c.fill(x: 24, y: ground - 1, width: 3, height: 2, 4)
-            c.fill(x: 26, y: ground, width: 1, height: 1, 1)
+            c.fill(x: 21, y: ground - 1, width: 3, height: 2, far)
+            c.fill(x: 24, y: ground - 1, width: 3, height: 2, near)
+            c.fill(x: 26, y: ground, width: 1, height: 1, paw)
         case .spread:
             for i in 0..<4 {
                 let out = i < 2 ? -1 : 1
-                let color: UInt8 = i % 2 == 0 ? 1 : 4
+                let color = i % 2 == 0 ? far : near
                 for step in 0..<5 {
                     c.fill(x: legX[i] + out * (step / 2), y: top + step, width: 2, height: 1, color)
                 }
-                c.fill(x: legX[i] + out * 2, y: top + 5, width: 2, height: 1, 1)
+                c.fill(x: legX[i] + out * 2, y: top + 5, width: 2, height: 1, paw)
             }
         case let .dangling(wiggle):
             for i in 0..<4 {
-                let color: UInt8 = i % 2 == 0 ? 1 : 4
+                let color = i % 2 == 0 ? far : near
                 let w = i % 2 == 0 ? wiggle : -wiggle
                 for y in top...ground {
                     c.fill(x: legX[i] + (y > top + 3 ? w : 0), y: y, width: 2, height: 1, color)
                 }
-                c.fill(x: legX[i] + w, y: ground, width: 2, height: 1, 1)
+                c.fill(x: legX[i] + w, y: ground, width: 2, height: 1, paw)
             }
         }
     }
@@ -430,14 +468,17 @@ public enum SheepArt {
     }
 
     /// Pixels of a letter "z" in an n-by-n box.
-    private static func zShape(_ n: Int) -> [(Int, Int)] {
+    static func zShape(_ n: Int) -> [(Int, Int)] {
         var points: [(Int, Int)] = []
         for i in 0..<n { points += [(i, 0), (i, n - 1)] }
         for i in 1..<(n - 1) { points.append((n - 1 - i, i)) }
         return points
     }
 
-    private static func drawEffect(_ c: inout PixelCanvas, _ effect: Pose.Effect, headDX hx: Int, headDY hy: Int) {
+    /// Draws effects shared by all animals. `callX/Y` is just in front of the mouth; `foodX` is
+    /// where food sits on the ground.
+    static func drawEffect(_ c: inout PixelCanvas, _ effect: Pose.Effect, animal: Animal,
+                           callX mx: Int, callY mouthY: Int, foodX: Int) {
         switch effect {
         case .none:
             break
@@ -448,8 +489,9 @@ public enum SheepArt {
                 let rise = frame % 2
                 c.plot(zShape(spot.2).map { ($0.0 + spot.0, $0.1 + spot.1 - rise) }, 9)
             }
-        case let .bleat(frame):
-            let mouthY = 21 + hy, mx = 33 + hx
+        case let .call(frame) where animal != .sheep:
+            drawCall(&c, animal, frame: frame, x: mx, y: mouthY)
+        case let .call(frame):
             c.plot([(mx, mouthY - 2), (mx + 1, mouthY - 1), (mx + 1, mouthY), (mx, mouthY + 1)], 1)
             if frame >= 1 {
                 c.plot([(mx + 2, mouthY - 4), (mx + 3, mouthY - 3), (mx + 4, mouthY - 2), (mx + 4, mouthY - 1),
@@ -459,13 +501,15 @@ public enum SheepArt {
                 c.plot([(mx + 5, mouthY - 6), (mx + 6, mouthY - 5), (mx + 7, mouthY - 3), (mx + 7, mouthY - 2),
                         (mx + 7, mouthY - 1), (mx + 7, mouthY), (mx + 6, mouthY + 2), (mx + 5, mouthY + 3)], 1)
             }
-        case let .grass(frame):
+        case let .food(frame) where animal != .sheep:
+            drawFood(&c, animal, frame: frame, x: foodX)
+        case let .food(frame):
             // Tufts in front of the mouth; one blade gets shorter as it's nibbled.
             let blades: [(Int, Int, UInt8)] = [
                 (31, 3, 8), (32, 5, 7), (33, 4, 8), (34, frame % 2 == 0 ? 6 : 4, 7), (35, 3, 8), (37, 2, 7), (38, 3, 8),
             ]
             for (x, h, color) in blades {
-                for y in (ground - h + 1)...ground { c[x + hx - 1, y] = color }
+                for y in (ground - h + 1)...ground { c[x + foodX - 31, y] = color }
             }
         }
     }

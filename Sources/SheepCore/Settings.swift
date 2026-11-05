@@ -16,9 +16,10 @@ public struct PetSettings: Codable, Equatable, Sendable {
     public static let speedRange: ClosedRange<Double> = 0.25...3
 
     /// Idle behaviors the user can switch off. Standing can't be disabled.
-    public static let toggleableBehaviors: [Behavior] = [.walk, .run, .sit, .sleep, .eat, .bleat]
+    public static let toggleableBehaviors: [Behavior] = [.walk, .run, .sit, .sleep, .eat, .call]
 
     public var petCount = 1
+    public var animal: AnimalChoice = .only(.sheep)
     public var entryStyle: EntryStyle = .drop
     public var walkOnWindows = true
     /// Stored as the disabled set so behaviors added in later versions start enabled.
@@ -48,24 +49,25 @@ public struct PetSettings: Codable, Equatable, Sendable {
     }
 
     /// Applies the settings that affect simulation to a sheep config.
-    public func apply(to config: inout SheepConfig) {
+    public func apply(to config: inout PetConfig) {
         config.speedMultiplier = speed
         config.enabledBehaviors = enabledBehaviors
     }
 
     private enum CodingKeys: String, CodingKey {
-        case petCount, entryStyle, walkOnWindows, disabledBehaviors, speed
+        case petCount, animal, entryStyle, walkOnWindows, disabledBehaviors, speed
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = PetSettings()
         petCount = (try? c.decodeIfPresent(Int.self, forKey: .petCount)) ?? d.petCount
+        animal = (try? c.decodeIfPresent(AnimalChoice.self, forKey: .animal)) ?? d.animal
         entryStyle = (try? c.decodeIfPresent(EntryStyle.self, forKey: .entryStyle)) ?? d.entryStyle
         walkOnWindows = (try? c.decodeIfPresent(Bool.self, forKey: .walkOnWindows)) ?? d.walkOnWindows
         // Decode names one by one so a behavior removed in a later version doesn't drop the rest.
         let names = (try? c.decodeIfPresent([String].self, forKey: .disabledBehaviors)) ?? []
-        disabledBehaviors = Set(names.compactMap(Behavior.init(rawValue:)))
+        disabledBehaviors = Set(names.map { $0 == "bleat" ? "call" : $0 }.compactMap(Behavior.init(rawValue:)))
         speed = (try? c.decodeIfPresent(Double.self, forKey: .speed)) ?? d.speed
         self = clamped()
     }
@@ -73,6 +75,7 @@ public struct PetSettings: Codable, Equatable, Sendable {
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(petCount, forKey: .petCount)
+        try c.encode(animal, forKey: .animal)
         try c.encode(entryStyle, forKey: .entryStyle)
         try c.encode(walkOnWindows, forKey: .walkOnWindows)
         try c.encode(disabledBehaviors.map(\.rawValue).sorted(), forKey: .disabledBehaviors)

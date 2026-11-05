@@ -8,39 +8,46 @@ final class Sprites {
 
     /// Screen points per art pixel.
     let scale: CGFloat = 2
-    var size: CGSize { CGSize(width: CGFloat(SheepArt.width) * scale, height: CGFloat(SheepArt.height) * scale) }
+    var size: CGSize { CGSize(width: CGFloat(PetArt.width) * scale, height: CGFloat(PetArt.height) * scale) }
 
     private struct Key: Hashable {
         let pose: Pose
+        let animal: Animal
         let mirrored: Bool
     }
 
-    private var canvases: [Pose: PixelCanvas] = [:]
+    private struct CanvasKey: Hashable {
+        let pose: Pose
+        let animal: Animal
+    }
+
+    private var canvases: [CanvasKey: PixelCanvas] = [:]
     private var images: [Key: CGImage] = [:]
 
-    func canvas(for pose: Pose) -> PixelCanvas {
-        if let c = canvases[pose] { return c }
-        let c = SheepArt.render(pose)
-        canvases[pose] = c
+    func canvas(for pose: Pose, animal: Animal) -> PixelCanvas {
+        let key = CanvasKey(pose: pose, animal: animal)
+        if let c = canvases[key] { return c }
+        let c = PetArt.render(pose, animal: animal)
+        canvases[key] = c
         return c
     }
 
-    func image(for pose: Pose, facing: Facing) -> CGImage? {
-        let key = Key(pose: pose, mirrored: facing == .left)
+    func image(for pose: Pose, animal: Animal, facing: Facing) -> CGImage? {
+        let key = Key(pose: pose, animal: animal, mirrored: facing == .left)
         if let image = images[key] { return image }
-        guard let image = Self.makeImage(canvas(for: pose), mirrored: key.mirrored) else { return nil }
+        guard let image = Self.makeImage(canvas(for: pose, animal: animal), mirrored: key.mirrored) else { return nil }
         images[key] = image
         return image
     }
 
     /// True if the art pixel under a point (in the sprite window's coordinates) is not transparent.
-    func isOpaque(pose: Pose, facing: Facing, at point: CGPoint) -> Bool {
-        let c = canvas(for: pose)
+    func isOpaque(pose: Pose, animal: Animal, facing: Facing, at point: CGPoint) -> Bool {
+        let c = canvas(for: pose, animal: animal)
         var px = Int(point.x / scale)
         let py = c.height - 1 - Int(point.y / scale)
         if facing == .left { px = c.width - 1 - px }
         // Treat pixels next to the pet as part of it too, so it's easy to grab.
-        for dy in -1...1 { for dx in -1...1 where SheepArt.isSolid(c.pixel(px + dx, py + dy)) { return true } }
+        for dy in -1...1 { for dx in -1...1 where PetArt.isSolid(c.pixel(px + dx, py + dy)) { return true } }
         return false
     }
 
@@ -48,7 +55,7 @@ final class Sprites {
         var bytes = [UInt8](repeating: 0, count: c.width * c.height * 4)
         for y in 0..<c.height {
             for x in 0..<c.width {
-                let color = SheepArt.palette[Int(c.pixel(mirrored ? c.width - 1 - x : x, y))]
+                let color = PetArt.palette[Int(c.pixel(mirrored ? c.width - 1 - x : x, y))]
                 let i = (y * c.width + x) * 4
                 let a = UInt16(color.a)
                 // Premultiplied alpha.
@@ -72,8 +79,8 @@ final class Sprites {
         let image = NSImage(size: NSSize(width: 22, height: 18))
         var pose = Pose()
         pose.shadow = false
-        let body = CGRect(x: SheepArt.bodyOrigin.x, y: SheepArt.bodyOrigin.y, width: SheepArt.bodyWidth, height: SheepArt.bodyHeight)
-        if let cg = self.image(for: pose, facing: .right)?.cropping(to: body) {
+        let body = CGRect(x: PetArt.bodyOrigin.x, y: PetArt.bodyOrigin.y, width: PetArt.bodyWidth, height: PetArt.bodyHeight)
+        if let cg = self.image(for: pose, animal: .sheep, facing: .right)?.cropping(to: body) {
             image.lockFocus()
             NSGraphicsContext.current?.imageInterpolation = .none
             NSGraphicsContext.current?.cgContext.interpolationQuality = .none
