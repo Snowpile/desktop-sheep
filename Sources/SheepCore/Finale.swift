@@ -126,53 +126,40 @@ extension PetArt {
         }
     }
 
-    /// Effects after the pet is drawn. Works in absolute sprite coordinates for whole-sprite edits.
-    static func applyFinale(_ c: inout PixelCanvas, _ look: Pose.FinaleLook) {
+    /// Finale effects drawn over the pet on the effect layer (absolute layer coordinates).
+    static func drawFinaleFront(_ c: inout PixelCanvas, _ look: Pose.FinaleLook) {
+        c.originX = 0
+        c.originY = 0
         switch look {
-        case .none, .balloons:
-            break
-        case let .burning(f):
-            drawBodyFire(&c, frame: f)
-        case let .charred(f):
-            recolorSolid(&c) { x, y in (x + y + f) % 4 == 0 ? 32 : 33 }
-            drawSmokeWisps(&c, frame: f)
-        case let .ashPile(f):
-            drawAshPile(&c, frame: f)
-        case .flash:
-            recolorSolid(&c) { _, _ in 5 }
-            outlineSolid(&c)
-        case let .debris(f):
-            drawDebris(&c, frame: f)
-        case let .poof(f):
-            drawPoof(&c, frame: f)
-        case let .beam(f):
-            // Dissolve the pet in a checkerboard that fills in over time.
-            let cut = f - 4
-            if cut > 0 {
-                for y in 0..<c.height { for x in 0..<c.width where (x * 3 + y * 5) % 10 < cut && c.pixel(x, y) != 34 {
-                    c.pixels[y * c.width + x] = 0
-                } }
-            }
-            drawBeam(&c, frame: f, front: true)
-        case let .shrink(f):
-            shrink(&c, scale: max(1 - Double(f) / 11, 0))
-            if f >= 9 { drawSparkle(&c, frame: f - 9) }
+        case let .burning(f): drawBodyFire(&c, frame: f)
+        case let .charred(f): drawSmokeWisps(&c, frame: f)
+        case let .ashPile(f): drawAshPile(&c, frame: f)
+        case let .debris(f): drawDebris(&c, frame: f)
+        case let .poof(f): drawPoof(&c, frame: f)
+        case let .beam(f): drawBeam(&c, frame: f, front: true)
+        case let .shrink(f) where f >= 9: drawSparkle(&c, frame: f - 9)
+        default: break
         }
     }
 
-    private static func recolorSolid(_ c: inout PixelCanvas, _ color: (Int, Int) -> UInt8) {
-        for y in 0..<c.height { for x in 0..<c.width where isSolid(c.pixel(x, y)) {
-            c.pixels[y * c.width + x] = color(x, y)
-        } }
-    }
-
-    private static func outlineSolid(_ c: inout PixelCanvas) {
-        let src = c
-        for y in 0..<c.height { for x in 0..<c.width where src.pixel(x, y) == 0 {
-            if [src.pixel(x - 1, y), src.pixel(x + 1, y), src.pixel(x, y - 1), src.pixel(x, y + 1)].contains(5) {
-                c.pixels[y * c.width + x] = 26
-            }
-        } }
+    /// Finale changes to the pet itself: charring, a white flash, dissolving, shrinking.
+    static func applyFinaleColors(_ c: inout ColorCanvas, _ look: Pose.FinaleLook) {
+        switch look {
+        case let .charred(f):
+            let ash = ColorCanvas.pack(paletteRGB(32)), char = ColorCanvas.pack(paletteRGB(33))
+            c.recolorSolid { x, y in (x + y + f) % 4 == 0 ? ash : char }
+        case .flash:
+            c.recolorSolid { _, _ in ColorCanvas.pack(RGB(0xFFFFFF)) }
+            c.outlineSolid(ColorCanvas.pack(paletteRGB(26)))
+        case let .beam(f):
+            // Dissolve the pet in a pattern that fills in over time.
+            let cut = f - 4
+            if cut > 0 { c.clearSolid { x, y in (x * 3 + y * 5) % 10 < cut } }
+        case let .shrink(f):
+            c.shrink(scale: max(1 - Double(f) / 11, 0), aroundX: Double(width) / 2, bottom: Double(groundRow))
+        default:
+            break
+        }
     }
 
     /// Flames licking up from the pet's body (absolute coordinates: body is rows ~26-47).
@@ -265,27 +252,15 @@ extension PetArt {
             for x in (24 - w)...(24 + w) where x >= 0 && x < c.width {
                 let edge = x == 24 - w || x == 24 + w
                 if front {
-                    if c.pixel(x, y) == 0 && (x + y + f) % 9 == 0 { c.pixels[y * c.width + x] = 26 }
+                    // A few sparkles drifting up through the beam around the pet.
+                    if y >= 18 && c.pixel(x, y) == 0 && (x * 5 + y * 3 + f * 7) % 23 == 0 { c.pixels[y * c.width + x] = 26 }
                 } else {
-                    c.pixels[y * c.width + x] = edge ? 26 : 34
+                    c.pixels[y * c.width + x] = edge ? 37 : 34
                 }
             }
         }
     }
 
-    /// Scales the sprite down around its bottom center (nearest neighbor).
-    private static func shrink(_ c: inout PixelCanvas, scale: Double) {
-        let src = c
-        c.pixels = Array(repeating: 0, count: c.width * c.height)
-        guard scale > 0.05 else { return }
-        let cx = Double(c.width) / 2, bottom = Double(c.height)
-        for y in 0..<c.height {
-            for x in 0..<c.width {
-                let sx = Int(cx + (Double(x) + 0.5 - cx) / scale), sy = Int(bottom + (Double(y) + 0.5 - bottom) / scale)
-                c.pixels[y * c.width + x] = src.pixel(sx, sy)
-            }
-        }
-    }
 
     private static func drawSparkle(_ c: inout PixelCanvas, frame f: Int) {
         let r = 1 + f

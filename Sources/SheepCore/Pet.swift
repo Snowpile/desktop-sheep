@@ -60,7 +60,7 @@ public struct PetConfig: Sendable {
     /// Half the sheep's body width, used to turn around before poking off a screen edge.
     public var halfWidth: Double = 26
     /// Sprite height, used to keep the sheep below the top of the screen.
-    public var height: Double = 64
+    public var height: Double = 80
     /// How far (up or down) the sheep snaps onto a nearby surface, e.g. when a window moves a little.
     public var snapDistance: Double = 6
     /// Impacts faster than this make the sheep bleat in surprise when it lands.
@@ -360,7 +360,8 @@ public struct Pet: Sendable {
         case .hang:
             return (x - width / 2, y - Double(PetArt.height - PetArt.hangGripRow) * scale)
         default:
-            return (x - width / 2, y)
+            // Feet stand on the sprite's ground row, a few pixels above its bottom edge.
+            return (x - width / 2, y - Double(PetArt.height - PetArt.groundRow) * scale)
         }
     }
 

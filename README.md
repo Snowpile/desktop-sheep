@@ -42,55 +42,16 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
 - Pets notice each other: they bump and turn or stop to nuzzle, chase and tag, fall into
   follow-the-leader lines, play-fight, stack up on each other's backs (and ride along), and yawns
   spread. Every behavior can be switched off in Settings.
-- Pixel art is drawn at runtime from code (`Sources/SheepCore/SheepArt.swift`): a 40x32 pet in a
-  48x48 sprite (room for effects), shown at 2x, with blinking, ear flicks, a wagging tail,
-  wool highlights and a soft ground shadow.
-
-## Requirements
-
-macOS 13 or later, Swift 6 toolchain. Xcode is not required; the Command Line Tools are enough.
-
-## Download
-
-Grab `Desktop-Sheep-vX.Y.Z.zip` from the [latest release](https://github.com/Snowpile/desktop-sheep/releases/latest),
-unzip it and move **Desktop Sheep.app** to Applications. The app is ad-hoc signed, not notarized,
-so the first time macOS will refuse to open it: right-click the app, choose **Open**, then **Open**
-again (or run `xattr -dr com.apple.quarantine "/Applications/Desktop Sheep.app"`).
-
-Releases are built by GitHub Actions when a `v*` tag is pushed; every push and pull request is
-built and tested on a macOS runner.
-
-## Build and run
-
-```sh
-swift build
-swift run DesktopSheep              # one sheep
-swift run DesktopSheep --count 3    # a small flock (session only; nothing is saved)
-
-swift test                          # physics, state machine, window-edge and sprite tests
-
-scripts/bundle.sh                   # builds dist/Desktop Sheep.app (release, ad-hoc signed)
-open "dist/Desktop Sheep.app"
-```
-
-Quit from the menu-bar sheep, or `pkill -f DesktopSheep`.
-
-`VERSION=1.2.3 scripts/bundle.sh` sets the app's version (defaults to 0.1.0).
-
-## Permissions
-
-None are needed. Treat drops use a global mouse-click monitor, which macOS allows without
-Accessibility permission (only keyboard monitoring needs it). Window positions come from `CGWindowListCopyWindowInfo`, which returns window
-bounds without Screen Recording permission (only window titles require it, and they are not used).
-No Accessibility permission is used: dragging works through the sheep's own window.
-
-## Layout
-
+- Pixel art is drawn at runtime from code: each animal is a small rig of shapes
+  (`Sources/SheepCore/RigAnimals.swift`), posed per frame and rasterized as shaded 64x64 pixel
+  art (`PixelStyle.swift`), shown at 1.5x. Props and effects are layered on top.
 - `Sources/SheepCore` – pure Swift, no AppKit: world geometry (screens, window tops), physics,
   the behavior state machine, and the pixel-art renderer. Unit tested.
 - `Sources/DesktopSheep` – the AppKit shell: one small floating panel per sheep, the menu-bar
   item, mouse dragging and click-through, and the window scanner.
 - `scripts/bundle.sh` – wraps the release binary into an `.app` with `LSUIElement`.
+- `Sources/ArtLab` – `swift run ArtLab` renders preview sheets into `docs/previews`, including
+  an alternative smooth vector style (Core Graphics) drawn from the same rig.
 
 ## Known limitations
 
