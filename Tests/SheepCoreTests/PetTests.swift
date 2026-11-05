@@ -195,7 +195,7 @@ private func run(_ sheep: inout Pet, in world: World, seconds: Double, seed: UIn
 
 @Suite struct ArtTests {
     @Test func everyFrameRendersSomething() {
-        for b in Behavior.allCases {
+        for b in Behavior.allCases where b != .finale { // finales end blank on purpose
             let frames = PetArt.frames(for: b)
             #expect(!frames.isEmpty)
             for pose in frames {

@@ -5,11 +5,13 @@ public enum Behavior: String, CaseIterable, Codable, Sendable {
     case stand, walk, run, sit, sleep, eat, call, fall, dragged
     /// Arrivals (see `EntryStyle`), and the dazed moment after a meteor landing.
     case parachute, meteor, jetpack, impact
+    /// The grand finale: a short countdown, then the pet leaves for good.
+    case countdown, finale
 
     /// Behaviors that happen while standing on something.
     public var isGrounded: Bool {
         switch self {
-        case .fall, .dragged, .parachute, .meteor, .jetpack: return false
+        case .fall, .dragged, .parachute, .meteor, .jetpack, .countdown, .finale: return false
         default: return true
         }
     }
@@ -69,6 +71,9 @@ public struct Pet: Sendable {
     public var animal: Animal
     /// 0..<1, desynchronizes animation details (like blinking) between pets.
     public var phase: Double = 0
+    public private(set) var finaleStyle: FinaleStyle = .vanish
+    /// True once the finale has finished; the pet should be removed.
+    public private(set) var isGone = false
     /// Where a jetpack arrival is heading.
     private var targetX: Double = 0
 
@@ -144,6 +149,12 @@ public struct Pet: Sendable {
             integrateFall(dt: dt, world: world, rng: &rng)
         case .parachute, .meteor, .jetpack:
             integrateEntry(dt: dt, world: world, rng: &rng)
+        case .countdown:
+            if timeInBehavior >= behaviorDuration {
+                setBehavior(.finale, duration: PetArt.finaleDuration(finaleStyle))
+            }
+        case .finale:
+            stepFinale(dt: dt, world: world)
         default:
             guard let surface = nearestSupport(world: world) else {
                 startFalling(vx: movingSpeed * facing.sign * 0.5, vy: 0)
@@ -175,9 +186,37 @@ public struct Pet: Sendable {
         }
     }
 
+    // MARK: - Finale
+
+    /// Starts the countdown to this pet's finale. Every pet given the same call at the same
+    /// moment goes off together.
+    public mutating func beginFinale(style: FinaleStyle) {
+        guard behavior != .countdown && behavior != .finale else { return }
+        var rng = SeededGenerator(seed: UInt64(phase * 1_000_000))
+        finaleStyle = style.resolved(using: &rng)
+        vx = 0
+        vy = 0
+        setBehavior(.countdown, duration: PetArt.countdownSeconds)
+    }
+
+    private mutating func stepFinale(dt: Double, world: World) {
+        switch finaleStyle {
+        case .balloons:
+            y += 70 * dt
+            x += sin(timeInBehavior * 2) * 12 * dt
+        case .beamUp where timeInBehavior > 0.6:
+            y += 60 * (timeInBehavior - 0.6) * dt * 2
+        default:
+            break
+        }
+        let top = world.screens.map(\.maxY).max() ?? 0
+        if timeInBehavior >= behaviorDuration || y > top + 20 { isGone = true }
+    }
+
     // MARK: - Dragging
 
     public mutating func beginDrag() {
+        guard behavior != .countdown && behavior != .finale else { return }
         vx = 0
         vy = 0
         setBehavior(.dragged, duration: .infinity)
@@ -224,7 +263,7 @@ public struct Pet: Sendable {
 
     /// The current animation frame.
     public var pose: Pose {
-        PetArt.pose(for: behavior, animal: animal, time: animationTime, phase: phase)
+        PetArt.pose(for: behavior, animal: animal, time: animationTime, phase: phase, finale: finaleStyle)
     }
 
     private func nearestSupport(world: World) -> Platform? {
@@ -399,7 +438,7 @@ public struct Pet: Sendable {
         case .eat: return 3...6
         case .call: return 1.2...1.2
         case .impact: return 1.6...1.6
-        case .fall, .dragged, .parachute, .meteor, .jetpack: return .infinity ... .infinity
+        case .fall, .dragged, .parachute, .meteor, .jetpack, .countdown, .finale: return .infinity ... .infinity
         }
     }
 

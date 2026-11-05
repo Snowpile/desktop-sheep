@@ -21,6 +21,10 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
 - New pets arrive in style (menu **New Pets Arrive By** or Settings): dropped from the top,
   drifting down on a parachute, as a flaming meteor that lands with a dazed thud, by jetpack from
   the side of the screen, or a surprise pick.
+- **Grand Finale** (menu, with a confirmation): after a 3-2-1 countdown over their heads, all
+  pets go at once: burn to a pile of ash that blows away, explode into confetti, vanish in a puff,
+  float away on balloons, get beamed up, shrink to nothing, or a surprise mix. Afterwards the menu
+  offers **Bring Back Pets**.
 - Gravity, landing, throwing, turning around at screen edges.
 - Multi-monitor aware: sheep cross between displays that line up, and turn back otherwise.
 - Random behavior state machine: walk, run, sit, sleep, eat, call (bleat/meow/bark…, visual only).
