@@ -46,6 +46,8 @@ public struct PetSettings: Codable, Equatable, Sendable {
     public var disabledBehaviors: Set<Behavior> = []
     /// Multiplies walking and running speed.
     public var speed = 1.0
+    /// Short synthesized sound effects (off by default).
+    public var sounds = false
 
     public init() {}
 
@@ -79,7 +81,7 @@ public struct PetSettings: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case petCount, animal, entryStyle, finaleStyle, walkOnWindows, walkOffScreen, newPetAfterWalkOff, disabledBehaviors, speed
+        case petCount, animal, entryStyle, finaleStyle, walkOnWindows, walkOffScreen, newPetAfterWalkOff, disabledBehaviors, speed, sounds
     }
 
     public init(from decoder: Decoder) throws {
@@ -96,6 +98,7 @@ public struct PetSettings: Codable, Equatable, Sendable {
         let names = (try? c.decodeIfPresent([String].self, forKey: .disabledBehaviors)) ?? []
         disabledBehaviors = Set(names.map { $0 == "bleat" ? "call" : $0 }.compactMap(Behavior.init(rawValue:)))
         speed = (try? c.decodeIfPresent(Double.self, forKey: .speed)) ?? d.speed
+        sounds = (try? c.decodeIfPresent(Bool.self, forKey: .sounds)) ?? d.sounds
         self = clamped()
     }
 
@@ -110,5 +113,6 @@ public struct PetSettings: Codable, Equatable, Sendable {
         try c.encode(newPetAfterWalkOff, forKey: .newPetAfterWalkOff)
         try c.encode(disabledBehaviors.map(\.rawValue).sorted(), forKey: .disabledBehaviors)
         try c.encode(speed, forKey: .speed)
+        try c.encode(sounds, forKey: .sounds)
     }
 }

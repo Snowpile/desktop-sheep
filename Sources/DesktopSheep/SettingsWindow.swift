@@ -15,6 +15,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let windowsCheck = NSButton(checkboxWithTitle: "Walk on top of windows", target: nil, action: nil)
     private let walkOffCheck = NSButton(checkboxWithTitle: "Walk off the screen edge and leave", target: nil, action: nil)
     private let newPetCheck = NSButton(checkboxWithTitle: "…and sometimes a new pet shows up later", target: nil, action: nil)
+    private let soundsCheck = NSButton(checkboxWithTitle: "Play sounds (bleats, meows, barks…)", target: nil, action: nil)
     private let speedSlider = NSSlider()
     private let speedLabel = NSTextField(labelWithString: "")
     private var behaviorChecks: [Behavior: NSButton] = [:]
@@ -67,6 +68,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         movement.alignment = .leading
         movement.spacing = 4
 
+        soundsCheck.target = self
+        soundsCheck.action = #selector(soundsChanged)
+
         speedSlider.minValue = PetSettings.speedRange.lowerBound
         speedSlider.maxValue = PetSettings.speedRange.upperBound
         speedSlider.target = self
@@ -100,6 +104,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             [label("Grand finale:"), finalePopup],
             [label("Wandering:"), movement],
             [label("Speed:"), row(speedSlider, speedLabel)],
+            [label("Sound:"), soundsCheck],
             [label("Behaviors:"), behaviorStack],
         ])
         grid.rowSpacing = 10
@@ -170,6 +175,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         walkOffCheck.state = s.walkOffScreen ? .on : .off
         newPetCheck.state = s.newPetAfterWalkOff ? .on : .off
         newPetCheck.isEnabled = s.walkOffScreen
+        soundsCheck.state = s.sounds ? .on : .off
         speedSlider.doubleValue = s.speed
         speedLabel.stringValue = String(format: "%.2g×", s.speed)
         for (behavior, check) in behaviorChecks { check.state = s.isEnabled(behavior) ? .on : .off }
@@ -191,6 +197,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         guard FinaleStyle.allCases.indices.contains(i) else { return }
         store.update { $0.finaleStyle = FinaleStyle.allCases[i] }
     }
+    @objc private func soundsChanged() { store.update { $0.sounds = soundsCheck.state == .on } }
     @objc private func walkOffChanged() { store.update { $0.walkOffScreen = walkOffCheck.state == .on } }
     @objc private func newPetChanged() { store.update { $0.newPetAfterWalkOff = newPetCheck.state == .on } }
     @objc private func windowsChanged() { store.update { $0.walkOnWindows = windowsCheck.state == .on } }

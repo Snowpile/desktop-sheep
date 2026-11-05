@@ -23,6 +23,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var bringBackItem: NSMenuItem?
     /// How many pets there were before the last finale, so they can be brought back.
     private var petsBeforeFinale = 0
+    private let sounds = SoundPlayer()
+    private var lastBehaviors: [UInt64: Behavior] = [:]
+    private var soundsItem: NSMenuItem?
     private var treats: [Treat] = []
     private var treatWindows: [Int: TreatWindow] = [:]
     private var nextTreatID = 1
@@ -112,6 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         walkOnWindowsItem = add(menu, "Walk on Windows", #selector(toggleWalkOnWindows), "")
         add(menu, "Drop a Treat (or ⌥-click anywhere)", #selector(dropTreatAction), "t")
         add(menu, "Settings…", #selector(showSettings), ",")
+        soundsItem = add(menu, "Sounds", #selector(toggleSounds), "")
         loginItem = add(menu, "Launch at Login", #selector(toggleLaunchAtLogin), "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Desktop Sheep", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -136,6 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         addItem?.isEnabled = flock.count < PetSettings.maxPets
         walkOnWindowsItem?.state = store.settings.walkOnWindows ? .on : .off
+        soundsItem?.state = store.settings.sounds ? .on : .off
         loginItem?.isEnabled = LaunchAtLogin.isAvailable
         loginItem?.state = LaunchAtLogin.isEnabled ? .on : (LaunchAtLogin.needsApproval ? .mixed : .off)
         loginItem?.toolTip = LaunchAtLogin.isAvailable ? nil : "Available when running Desktop Sheep.app"
@@ -148,6 +153,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func toggleWalkOnWindows() { store.update { $0.walkOnWindows.toggle() } }
     @objc private func showSettings() { settingsWindow.show() }
     @objc private func toggleLaunchAtLogin() { LaunchAtLogin.toggle() }
+    @objc private func toggleSounds() { store.update { $0.sounds.toggle() } }
+
+    /// Sounds for what pets just started doing.
+    private func playSounds(for pets: [Pet], now: Double) {
+        defer { lastBehaviors = Dictionary(uniqueKeysWithValues: pets.map { ($0.id, $0.behavior) }) }
+        guard store.settings.sounds else { return }
+        for pet in pets where lastBehaviors[pet.id] != pet.behavior && lastBehaviors[pet.id] != nil {
+            switch pet.behavior {
+            case .call: sounds.play(.call(for: pet.animal), now: now)
+            case .impact, .tumble: sounds.play(.thud, now: now)
+            case .startled: sounds.play(.pop, now: now)
+            case .finale: sounds.play(.finale(pet.finaleStyle), now: now)
+            default: break
+            }
+        }
+    }
     @objc private func startFinale(_ sender: NSMenuItem) {
         let style = FinaleStyle.allCases[sender.tag]
         store.update { $0.finaleStyle = style }
@@ -255,6 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         lastMouse = mouse
         Cursor.react(&pets, cursor: CursorInput(x: mouse.x, y: mouse.y, speed: speed), dt: dt, rng: &rng)
         Cursor.step(&treats, pets: &pets, world: world, dt: dt, rng: &rng)
+        playSounds(for: pets, now: now)
         for (id, window) in treatWindows {
             if let treat = treats.first(where: { $0.id == id }) { window.move(to: treat) } else {
                 window.close()
