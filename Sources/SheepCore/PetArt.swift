@@ -204,6 +204,8 @@ public enum PetArt {
         case .playFight: return 8
         case .ride: return 2
         case .startled: return 8
+        case .peek: return 2
+        case .menuNap: return 1.5
         case .chaseCursor, .fetchTreat: return 14
         }
     }
@@ -248,6 +250,8 @@ public enum PetArt {
             make { $0.lift = lift; $0.eyes = .wide; $0.mouthOpen = true; $0.earUp = true; $0.legs = lift > 0 ? .spread : Pose().legs; $0.gear = .alert }
         }
         case .chaseCursor, .fetchTreat: return runFrames.map { var p = $0; p.eyes = .happy; return p }
+        case .peek: return (0..<4).map { i in make { $0.eyes = i == 2 ? .wide : .open; $0.earUp = i % 2 == 1; $0.headDY = -1 } }
+        case .menuNap: return sleepFrames.map { var p = $0; p.shadow = false; return p }
         case .ride: return sitFrames.map { var p = $0; p.shadow = false; p.eyes = $0.earUp ? .happy : .open; return p }
         }
     }

@@ -13,13 +13,22 @@ enum DesktopScanner {
             let f = s.visibleFrame
             return Rect(x: f.minX, y: f.minY, width: f.width, height: f.height)
         }
-        guard includeWindows else { return World(screens: screens) }
-        let frames = windowFrames()
-        return World(
-            screens: screens,
-            windowTops: World.windowTops(frontToBack: frames, screens: screens, headroom: headroom),
-            windows: frames
-        )
+        let menuBars = NSScreen.screens.compactMap { s -> Rect? in
+            let f = s.frame, v = s.visibleFrame
+            guard f.maxY > v.maxY + 1 else { return nil }
+            return Rect(x: f.minX, y: v.maxY, width: f.width, height: f.maxY - v.maxY)
+        }
+        var world = World(screens: screens)
+        if includeWindows {
+            let frames = windowFrames()
+            world = World(
+                screens: screens,
+                windowTops: World.windowTops(frontToBack: frames, screens: screens, headroom: headroom),
+                windows: frames
+            )
+        }
+        world.menuBars = menuBars
+        return world
     }
 
     /// Frames of normal app windows, front to back, in AppKit global coordinates.

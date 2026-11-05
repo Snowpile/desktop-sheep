@@ -41,7 +41,28 @@ final class PetController {
         let size = Sprites.shared.size
         let origin = sheep.spriteOrigin(width: size.width, height: size.height)
         window.setFrameOrigin(CGPoint(x: origin.x.rounded(), y: origin.y.rounded()))
+        // Napping on the menu bar needs to be above it.
+        let level: NSWindow.Level = sheep.behavior == .menuNap ? .statusBar : .floating
+        if window.level != level { window.level = level }
+        updatePeekMask(originX: origin.x.rounded(), width: size.width, height: size.height)
         view.layer?.contents = Sprites.shared.image(for: pose, animal: sheep.animal, facing: sheep.facing)
+    }
+
+    /// While peeking, hides the part of the pet that is "behind" the window edge.
+    private func updatePeekMask(originX: Double, width: Double, height: Double) {
+        guard let edge = sheep.peekEdge else {
+            if view.layer?.mask != nil { view.layer?.mask = nil }
+            return
+        }
+        let mask = view.layer?.mask ?? CALayer()
+        mask.backgroundColor = NSColor.black.cgColor
+        let cut = min(max(edge - originX, 0), width)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        mask.frame = sheep.peekHidesRight ? CGRect(x: 0, y: 0, width: cut, height: height)
+                                          : CGRect(x: cut, y: 0, width: width - cut, height: height)
+        CATransaction.commit()
+        if view.layer?.mask == nil { view.layer?.mask = mask }
     }
 
     /// Lets clicks fall through to whatever is behind, except on the sheep itself.
@@ -52,7 +73,8 @@ final class PetController {
         }
         let local = CGPoint(x: mouse.x - window.frame.minX, y: mouse.y - window.frame.minY)
         let inside = local.x >= 0 && local.y >= 0 && local.x < window.frame.width && local.y < window.frame.height
-        let hit = inside && Sprites.shared.isOpaque(pose: pose, animal: sheep.animal, facing: sheep.facing, at: local)
+        let hidden = sheep.peekEdge.map { edge in sheep.peekHidesRight ? mouse.x > edge : mouse.x < edge } ?? false
+        let hit = inside && !hidden && Sprites.shared.isOpaque(pose: pose, animal: sheep.animal, facing: sheep.facing, at: local)
         if window.ignoresMouseEvents == hit { window.ignoresMouseEvents = !hit }
     }
 
