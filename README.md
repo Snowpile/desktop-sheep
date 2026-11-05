@@ -16,6 +16,8 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
   the dog barks and chews a bone, the bunny hops and nibbles a carrot, the red panda chirps and
   munches bamboo. Pick one for all pets (or **Mixed**) from the menu or Settings; right-click a
   single pet to change just that one.
+- Optional **Sounds** (off by default; menu or Settings): short original sounds synthesized in
+  code: bleat, meow, bark, squeak, chirp, thuds, and pops, poofs and booms for the finale.
 - **Launch at Login** menu toggle (uses `SMAppService`; only in the bundled .app, and macOS may
   ask you to allow it under System Settings › General › Login Items).
 - Settings window: animal, number of pets, entry style, finale style, walk on windows,
