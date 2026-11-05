@@ -144,6 +144,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         case .follow: return "Follow the leader"
         case .playFight: return "Play-fight"
         case .ride: return "Stack up on each other"
+        case .chaseCursor: return "Chase the mouse cursor"
+        case .startled: return "Startle at fast mouse moves"
         default: return behavior.rawValue.capitalized
         }
     }
