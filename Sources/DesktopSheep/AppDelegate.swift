@@ -4,6 +4,8 @@ import SheepCore
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    private let store = SettingsStore()
+    private lazy var settingsWindow = SettingsWindowController(store: store)
     private var flock: [SheepController] = []
     private var statusItem: NSStatusItem?
     private var timer: Timer?
@@ -12,20 +14,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var world = World(screens: [])
     private var rng = SystemRandomNumberGenerator()
     private var removeItem: NSMenuItem?
+    private var addItem: NSMenuItem?
     private var walkOnWindowsItem: NSMenuItem?
 
-    private static let maxSheep = 20
-    private static let walkOnWindowsKey = "walkOnWindows"
-    private var walkOnWindows: Bool {
-        get { UserDefaults.standard.object(forKey: Self.walkOnWindowsKey) as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: Self.walkOnWindowsKey) }
-    }
-
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let count = Self.countArgument() {
+            store.persists = false
+            store.update { $0.petCount = count }
+        }
         setUpMenu()
         rescan()
-        let count = Self.initialCount()
-        for _ in 0..<count { addSheep() }
+        syncFlock()
+        store.observe { [weak self] _ in self?.settingsChanged() }
 
         let timer = Timer(timeInterval: 1.0 / 30, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
         RunLoop.main.add(timer, forMode: .common)
@@ -37,13 +37,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
     }
 
-    /// `--count N` on the command line starts with N sheep.
-    private static func initialCount() -> Int {
+    /// `--count N` on the command line sets the number of pets; nothing is saved in that session.
+    private static func countArgument() -> Int? {
         let args = CommandLine.arguments
-        if let i = args.firstIndex(of: "--count"), i + 1 < args.count, let n = Int(args[i + 1]) {
-            return min(max(n, 1), maxSheep)
-        }
-        return 1
+        guard let i = args.firstIndex(of: "--count"), i + 1 < args.count else { return nil }
+        return Int(args[i + 1])
     }
 
     // MARK: Menu
@@ -55,40 +53,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
-        menu.addItem(withTitle: "Add Sheep", action: #selector(addSheepAction), keyEquivalent: "n").target = self
-        let remove = menu.addItem(withTitle: "Remove Sheep", action: #selector(removeSheepAction), keyEquivalent: "d")
-        remove.target = self
-        removeItem = remove
+        addItem = add(menu, "Add Sheep", #selector(addSheepAction), "n")
+        removeItem = add(menu, "Remove Sheep", #selector(removeSheepAction), "d")
         menu.addItem(.separator())
-        let walk = menu.addItem(withTitle: "Walk on Windows", action: #selector(toggleWalkOnWindows), keyEquivalent: "")
-        walk.target = self
-        walkOnWindowsItem = walk
+        walkOnWindowsItem = add(menu, "Walk on Windows", #selector(toggleWalkOnWindows), "")
+        add(menu, "Settings…", #selector(showSettings), ",")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Desktop Sheep", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
         statusItem = item
     }
 
+    @discardableResult
+    private func add(_ menu: NSMenu, _ title: String, _ action: Selector, _ key: String) -> NSMenuItem {
+        let item = menu.addItem(withTitle: title, action: action, keyEquivalent: key)
+        item.target = self
+        return item
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         removeItem?.isEnabled = !flock.isEmpty
-        walkOnWindowsItem?.state = walkOnWindows ? .on : .off
+        addItem?.isEnabled = flock.count < PetSettings.maxPets
+        walkOnWindowsItem?.state = store.settings.walkOnWindows ? .on : .off
     }
 
-    @objc private func addSheepAction() { addSheep() }
+    @objc private func addSheepAction() { store.update { $0.petCount += 1 } }
+    @objc private func removeSheepAction() { store.update { $0.petCount -= 1 } }
+    @objc private func toggleWalkOnWindows() { store.update { $0.walkOnWindows.toggle() } }
+    @objc private func showSettings() { settingsWindow.show() }
 
-    @objc private func removeSheepAction() {
-        guard let last = flock.popLast() else { return }
-        last.close()
-    }
+    // MARK: Flock
 
-    @objc private func toggleWalkOnWindows() {
-        walkOnWindows.toggle()
+    private func settingsChanged() {
         rescan()
+        syncFlock()
+        var config = SheepConfig()
+        store.settings.apply(to: &config)
+        for controller in flock { controller.sheep.apply(config) }
     }
 
-    private func addSheep() {
-        guard flock.count < Self.maxSheep, !world.screens.isEmpty else { return }
-        flock.append(SheepController(sheep: Sheep.spawn(in: world, rng: &rng)))
+    /// Adds or removes pets to match the configured count.
+    private func syncFlock() {
+        guard !world.screens.isEmpty else { return }
+        while flock.count > store.settings.petCount { flock.removeLast().close() }
+        while flock.count < store.settings.petCount {
+            var config = SheepConfig()
+            store.settings.apply(to: &config)
+            flock.append(SheepController(sheep: Sheep.spawn(in: world, rng: &rng, config: config)))
+        }
     }
 
     // MARK: Loop
@@ -96,7 +108,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func screensChanged() { rescan() }
 
     private func rescan() {
-        world = DesktopScanner.world(headroom: Double(Sprites.shared.size.height), includeWindows: walkOnWindows)
+        world = DesktopScanner.world(
+            headroom: Double(Sprites.shared.size.height),
+            includeWindows: store.settings.walkOnWindows
+        )
         lastScan = CACurrentMediaTime()
     }
 
