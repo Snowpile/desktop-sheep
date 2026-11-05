@@ -74,6 +74,10 @@ public struct PetConfig: Sendable {
     /// Chance to climb a wall when meeting one, and to hang on when walking off a window.
     public var climbChance: Double = 0.25
     public var hangChance: Double = 0.35
+    /// Time of day, nudging behavior weights (`day` = neutral).
+    public var dayPart: DayPart = .day
+    /// Seasonal decoration drawn on the pet.
+    public var seasonal: Seasonal = .none
     /// Walk off outer screen edges and leave instead of turning around.
     public var walkOffScreen = false
     /// Multiplies walk and run speed (user setting).
@@ -345,7 +349,9 @@ public struct Pet: Sendable {
 
     /// The current animation frame.
     public var pose: Pose {
-        PetArt.pose(for: behavior, animal: animal, time: animationTime, phase: phase, finale: finaleStyle)
+        var p = PetArt.pose(for: behavior, animal: animal, time: animationTime, phase: phase, finale: finaleStyle)
+        p.seasonal = config.seasonal
+        return p
     }
 
     /// Where the sprite's bottom-left corner goes, for a sprite of the given size in points.
@@ -675,6 +681,7 @@ public struct Pet: Sendable {
             $0.0 == .stand || config.enabledBehaviors.contains($0.0)
         }
         if options.isEmpty { options = [(.stand, 1)] }
+        options = options.map { ($0.0, $0.1 * config.dayPart.weight(for: $0.0)) }
         let total = options.reduce(0) { $0 + $1.1 }
         var pick = Double.random(in: 0..<total, using: &rng)
         var next = options[0].0
@@ -688,9 +695,8 @@ public struct Pet: Sendable {
             facing = facing.flipped
         }
         let range = Self.durationRange(for: next)
-        setBehavior(next, duration: range.lowerBound == range.upperBound
-                    ? range.lowerBound
-                    : Double.random(in: range, using: &rng))
+        let duration = range.lowerBound == range.upperBound ? range.lowerBound : Double.random(in: range, using: &rng)
+        setBehavior(next, duration: duration * config.dayPart.durationScale(for: next))
     }
 }
 

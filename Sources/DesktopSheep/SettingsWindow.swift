@@ -16,6 +16,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let walkOffCheck = NSButton(checkboxWithTitle: "Walk off the screen edge and leave", target: nil, action: nil)
     private let newPetCheck = NSButton(checkboxWithTitle: "…and sometimes a new pet shows up later", target: nil, action: nil)
     private let soundsCheck = NSButton(checkboxWithTitle: "Play sounds (bleats, meows, barks…)", target: nil, action: nil)
+    private let timeCheck = NSButton(checkboxWithTitle: "Sleepier at night, livelier in the morning", target: nil, action: nil)
+    private let seasonCheck = NSButton(checkboxWithTitle: "Seasonal touches (December hats, October pumpkins)", target: nil, action: nil)
     private let speedSlider = NSSlider()
     private let speedLabel = NSTextField(labelWithString: "")
     private var behaviorChecks: [Behavior: NSButton] = [:]
@@ -68,6 +70,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         movement.alignment = .leading
         movement.spacing = 4
 
+        timeCheck.target = self
+        timeCheck.action = #selector(timeChanged)
+        seasonCheck.target = self
+        seasonCheck.action = #selector(seasonChanged)
+        let mood = NSStackView(views: [timeCheck, seasonCheck])
+        mood.orientation = .vertical
+        mood.alignment = .leading
+        mood.spacing = 4
         soundsCheck.target = self
         soundsCheck.action = #selector(soundsChanged)
 
@@ -105,6 +115,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             [label("Wandering:"), movement],
             [label("Speed:"), row(speedSlider, speedLabel)],
             [label("Sound:"), soundsCheck],
+            [label("Calendar:"), mood],
             [label("Behaviors:"), behaviorStack],
         ])
         grid.rowSpacing = 10
@@ -176,6 +187,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         newPetCheck.state = s.newPetAfterWalkOff ? .on : .off
         newPetCheck.isEnabled = s.walkOffScreen
         soundsCheck.state = s.sounds ? .on : .off
+        timeCheck.state = s.timeOfDay ? .on : .off
+        seasonCheck.state = s.seasonalTouches ? .on : .off
         speedSlider.doubleValue = s.speed
         speedLabel.stringValue = String(format: "%.2g×", s.speed)
         for (behavior, check) in behaviorChecks { check.state = s.isEnabled(behavior) ? .on : .off }
@@ -197,6 +210,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         guard FinaleStyle.allCases.indices.contains(i) else { return }
         store.update { $0.finaleStyle = FinaleStyle.allCases[i] }
     }
+    @objc private func timeChanged() { store.update { $0.timeOfDay = timeCheck.state == .on } }
+    @objc private func seasonChanged() { store.update { $0.seasonalTouches = seasonCheck.state == .on } }
     @objc private func soundsChanged() { store.update { $0.sounds = soundsCheck.state == .on } }
     @objc private func walkOffChanged() { store.update { $0.walkOffScreen = walkOffCheck.state == .on } }
     @objc private func newPetChanged() { store.update { $0.newPetAfterWalkOff = newPetCheck.state == .on } }

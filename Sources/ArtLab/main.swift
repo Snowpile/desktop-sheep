@@ -143,3 +143,41 @@ do {
     }
     save(ctx, "in-app-frames.png")
 }
+
+// Seasonal touches: December hats and October pumpkins, 3x.
+do {
+    let picks: [(String, Behavior, Int, Seasonal)] = [
+        ("Dec stand", .stand, 0, .santaHat), ("Dec walk", .walk, 1, .santaHat), ("Dec sleep", .sleep, 2, .santaHat),
+        ("Oct sit", .sit, 0, .pumpkin), ("Oct sleep", .sleep, 2, .pumpkin), ("Oct eat", .eat, 1, .pumpkin),
+    ]
+    let z = 3.0, cellPx = Double(PetArt.width) * z
+    let w = Int(rowLabelWidth + cellPx * Double(picks.count)), h = Int(labelHeight * 2 + cellPx * Double(Animal.allCases.count))
+    let ctx = makeContext(width: w, height: h)
+    ctx.setFillColor(VectorStyle.cg(background))
+    ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+    drawText("Seasonal touches (shown 3x)", at: CGPoint(x: 12, y: 6), size: 18, in: ctx, bold: true)
+    for (c, pick) in picks.enumerated() {
+        drawText(pick.0, at: CGPoint(x: rowLabelWidth + Double(c) * cellPx + 8, y: labelHeight + 4), size: 13, in: ctx)
+    }
+    for (r, animal) in Animal.allCases.enumerated() {
+        let y = labelHeight * 2 + Double(r) * cellPx
+        drawText(animal.title, at: CGPoint(x: 12, y: y + cellPx / 2 - 10), size: 16, in: ctx)
+        for (c, pick) in picks.enumerated() {
+            let frames = PetArt.frames(for: pick.1, animal: animal)
+            var pose = frames[pick.2 % frames.count]
+            pose.seasonal = pick.3
+            let canvas = PetArt.render(pose, animal: animal)
+            let ox = rowLabelWidth + Double(c) * cellPx
+            ctx.setFillColor(VectorStyle.cg((r + c) % 2 == 0 ? RGB(0xE9E6DF) : RGB(0xEFEDE7)))
+            ctx.fill(CGRect(x: ox, y: y, width: cellPx, height: cellPx))
+            for py in 0..<canvas.height { for px in 0..<canvas.width {
+                let v = canvas[px, py]
+                guard v & 0xFF != 0 else { continue }
+                ctx.setFillColor(CGColor(srgbRed: CGFloat(v >> 24 & 0xFF) / 255, green: CGFloat(v >> 16 & 0xFF) / 255,
+                                         blue: CGFloat(v >> 8 & 0xFF) / 255, alpha: CGFloat(v & 0xFF) / 255))
+                ctx.fill(CGRect(x: ox + Double(px) * z, y: y + Double(py) * z, width: z, height: z))
+            } }
+        }
+    }
+    save(ctx, "seasonal.png")
+}

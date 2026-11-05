@@ -121,7 +121,45 @@ private struct Builder {
         tail()
         torso()
         headParts()
+        seasonalParts()
         effects()
+    }
+
+    // MARK: Seasonal touches
+
+    mutating func seasonalParts() {
+        switch pose.seasonal {
+        case .none:
+            break
+        case .santaHat:
+            // A floppy red hat with white trim, tip flopping back, pompom at the end.
+            let red = RGB(0xD8343F), white = RGB(0xFAF6F0)
+            let top = spec.headR.y
+            let left = head(-5.5, -top + 2.2), right = head(4.5, -top + 1.4)
+            let tip = head(-8.5, -top - 7.5)
+            add(.triangle(left, right, tip, round: 1.0), red, G.nearEar)
+            add(.capsule(a: head(-6.5, -top + 2.4), b: head(5.5, -top + 1.6), ra: 1.6, rb: 1.6), white, G.nearEar)
+            add(.ellipse(c: tip + RigPoint(x: -0.6, y: 0.4), rx: 1.9, ry: 1.9, angle: 0), white, G.nearEar)
+        case .pumpkin:
+            // A little jack-o'-lantern keeping resting pets company.
+            // Only beside resting pets; eating pets munch a small one instead (see effects).
+            guard pose.mode != .standing, pose.extra != .food else { break }
+            let dx = pose.mode == .lying ? spec.headR.x + 4.5 : 10
+            pumpkin(at: RigPoint(x: min(head(0, 0).x + dx, 61), y: ground - 3.6), size: 1)
+        }
+    }
+
+    mutating func pumpkin(at c: RigPoint, size k: Double) {
+        let orange = RGB(0xF08A24), dark = RGB(0x3A2416)
+        add(.ellipse(c: c + RigPoint(x: -1.6 * k, y: 0), rx: 2.4 * k, ry: 3.2 * k, angle: 0), orange.shade(-0.1), G.fx)
+        add(.ellipse(c: c + RigPoint(x: 1.6 * k, y: 0), rx: 2.4 * k, ry: 3.2 * k, angle: 0), orange.shade(-0.1), G.fx)
+        add(.ellipse(c: c, rx: 2.4 * k, ry: 3.4 * k, angle: 0), orange, G.fx)
+        add(.capsule(a: c + RigPoint(x: 0, y: -3.2 * k), b: c + RigPoint(x: 0.8 * k, y: -4.8 * k), ra: 0.7 * k, rb: 0.5 * k), RGB(0x5A7A2C), G.fx)
+        if k >= 1 {
+            add(.triangle(c + RigPoint(x: -2.4, y: -1), c + RigPoint(x: -1.2, y: -1), c + RigPoint(x: -1.8, y: -2), round: 0.1), dark, G.fx, decal: true)
+            add(.triangle(c + RigPoint(x: 1.2, y: -1), c + RigPoint(x: 2.4, y: -1), c + RigPoint(x: 1.8, y: -2), round: 0.1), dark, G.fx, decal: true)
+            add(.capsule(a: c + RigPoint(x: -2, y: 1.2), b: c + RigPoint(x: 2, y: 1.2), ra: 0.6, rb: 0.6), dark, G.fx, decal: true)
+        }
     }
 
     // MARK: Legs
@@ -426,6 +464,8 @@ private struct Builder {
                 }
                 add(.line(pts, width: 0.9 - Double(i) * 0.1), ink.with(alpha: 1 - Double(i) * 0.2), G.fx, decal: true)
             }
+        case .food where pose.seasonal == .pumpkin:
+            pumpkin(at: RigPoint(x: head(4, 7).x + 1, y: ground - 2.4), size: 0.7)
         case .food:
             let x = head(4, 7).x
             switch species {

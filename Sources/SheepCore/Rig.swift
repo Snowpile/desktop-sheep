@@ -157,6 +157,7 @@ public struct RigPose: Sendable {
     public var mode = RigMode.standing
     public var extra = RigExtra.none
     public var frame = 0
+    public var seasonal = Seasonal.none
 
     public init() {}
 }

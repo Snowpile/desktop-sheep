@@ -48,6 +48,10 @@ public struct PetSettings: Codable, Equatable, Sendable {
     public var speed = 1.0
     /// Short synthesized sound effects (off by default).
     public var sounds = false
+    /// Sleepier at night, livelier in the morning.
+    public var timeOfDay = true
+    /// Santa hats in December, pumpkins in October.
+    public var seasonalTouches = true
 
     public init() {}
 
@@ -71,6 +75,13 @@ public struct PetSettings: Codable, Equatable, Sendable {
     }
 
     /// Applies the settings that affect simulation to a sheep config.
+    /// Applies settings plus the current date's time of day and season.
+    public func apply(to config: inout PetConfig, hour: Int, month: Int) {
+        apply(to: &config)
+        config.dayPart = timeOfDay ? DayPart.forHour(hour) : .day
+        config.seasonal = seasonalTouches ? Seasonal.forMonth(month) : .none
+    }
+
     public func apply(to config: inout PetConfig) {
         config.speedMultiplier = speed
         var enabled = enabledBehaviors
@@ -81,7 +92,7 @@ public struct PetSettings: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case petCount, animal, entryStyle, finaleStyle, walkOnWindows, walkOffScreen, newPetAfterWalkOff, disabledBehaviors, speed, sounds
+        case petCount, animal, entryStyle, finaleStyle, walkOnWindows, walkOffScreen, newPetAfterWalkOff, disabledBehaviors, speed, sounds, timeOfDay, seasonalTouches
     }
 
     public init(from decoder: Decoder) throws {
@@ -99,6 +110,8 @@ public struct PetSettings: Codable, Equatable, Sendable {
         disabledBehaviors = Set(names.map { $0 == "bleat" ? "call" : $0 }.compactMap(Behavior.init(rawValue:)))
         speed = (try? c.decodeIfPresent(Double.self, forKey: .speed)) ?? d.speed
         sounds = (try? c.decodeIfPresent(Bool.self, forKey: .sounds)) ?? d.sounds
+        timeOfDay = (try? c.decodeIfPresent(Bool.self, forKey: .timeOfDay)) ?? d.timeOfDay
+        seasonalTouches = (try? c.decodeIfPresent(Bool.self, forKey: .seasonalTouches)) ?? d.seasonalTouches
         self = clamped()
     }
 
@@ -114,5 +127,7 @@ public struct PetSettings: Codable, Equatable, Sendable {
         try c.encode(disabledBehaviors.map(\.rawValue).sorted(), forKey: .disabledBehaviors)
         try c.encode(speed, forKey: .speed)
         try c.encode(sounds, forKey: .sounds)
+        try c.encode(timeOfDay, forKey: .timeOfDay)
+        try c.encode(seasonalTouches, forKey: .seasonalTouches)
     }
 }

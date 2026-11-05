@@ -227,18 +227,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 controller.render()
             }
         }
-        var config = PetConfig()
-        store.settings.apply(to: &config)
+        let config = currentConfig()
         for controller in flock { controller.sheep.apply(config) }
     }
+
+    /// Settings plus the current time of day and season.
+    private func currentConfig() -> PetConfig {
+        var config = PetConfig()
+        let now = Calendar.current.dateComponents([.hour, .month], from: Date())
+        store.settings.apply(to: &config, hour: now.hour ?? 12, month: now.month ?? 1)
+        return config
+    }
+
+    /// Re-applies the config when the hour changes (night falls, a new month starts…).
+    private var lastHour = -1
 
     /// Adds or removes pets to match the configured count.
     private func syncFlock() {
         guard !world.screens.isEmpty else { return }
         while flock.count > store.settings.petCount { flock.removeLast().close() }
         while flock.count < store.settings.petCount {
-            var config = PetConfig()
-            store.settings.apply(to: &config)
+            let config = currentConfig()
             let animal = store.settings.animal.pick(using: &rng)
             flock.append(PetController(sheep: Pet.spawn(in: world, rng: &rng, animal: animal, entry: store.settings.entryStyle, config: config)))
         }
@@ -261,6 +270,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let dt = min(now - lastTick, 0.1)
         lastTick = now
         if now - lastScan > 0.4 { rescan() }
+        let hour = Calendar.current.component(.hour, from: Date())
+        if hour != lastHour {
+            lastHour = hour
+            let config = currentConfig()
+            for controller in flock { controller.sheep.apply(config) }
+        }
         if let due = pendingArrivals.firstIndex(where: { $0 <= now }) {
             pendingArrivals.remove(at: due)
             if store.settings.walkOffScreen && flock.count < PetSettings.maxPets { store.update { $0.petCount += 1 } }
