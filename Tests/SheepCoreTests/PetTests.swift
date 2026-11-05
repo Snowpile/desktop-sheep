@@ -205,15 +205,14 @@ private func run(_ sheep: inout Pet, in world: World, seconds: Double, seed: UIn
                 let canvas = PetArt.render(pose)
                 #expect(canvas.width == PetArt.width && canvas.height == PetArt.height)
                 #expect(!canvas.isBlank)
-                #expect(canvas.pixels.allSatisfy { Int($0) < PetArt.palette.count })
             }
         }
     }
 
     @Test func standingSheepTouchesTheGround() {
         let canvas = PetArt.render(Pose())
-        let bottom = (0..<canvas.width).map { canvas[$0, canvas.height - 1] }
-        #expect(bottom.contains { $0 != 0 })
+        #expect((0..<canvas.width).contains { canvas.isSolid($0, PetArt.groundRow - 1) })
+        #expect(!(0..<canvas.width).contains { canvas.isSolid($0, PetArt.groundRow + 1) })
     }
 
     @Test func walkAnimationChangesOverTime() {
@@ -235,10 +234,9 @@ private func run(_ sheep: inout Pet, in world: World, seconds: Double, seed: UIn
 
     @Test func shadowIsTranslucentAndOnlyWhenGrounded() {
         let standing = PetArt.render(PetArt.pose(for: .stand, time: 0))
-        #expect(standing.pixels.contains(10))
-        #expect(!PetArt.isSolid(10))
-        #expect(!PetArt.render(PetArt.pose(for: .fall, time: 0)).pixels.contains(10))
-        #expect(!PetArt.render(PetArt.pose(for: .dragged, time: 0)).pixels.contains(10))
+        #expect(standing.hasTranslucent)
+        #expect(!PetArt.render(PetArt.pose(for: .fall, time: 0)).hasTranslucent)
+        #expect(!PetArt.render(PetArt.pose(for: .dragged, time: 0)).hasTranslucent)
     }
 
     @Test func petSitsAtTheBottomCenterOfTheSprite() {

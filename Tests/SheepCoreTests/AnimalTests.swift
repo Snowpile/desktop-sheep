@@ -9,10 +9,9 @@ import Testing
                 for pose in PetArt.frames(for: behavior, animal: animal) {
                     let c = PetArt.render(pose, animal: animal)
                     #expect(!c.isBlank, "\(animal) \(behavior)")
-                    #expect(c.pixels.allSatisfy { Int($0) < PetArt.palette.count })
                     // Something solid on the bottom row unless the pet is in the air.
                     if pose.lift == 0 && pose.shadow && ![.run, .chase, .flee, .chaseCursor, .fetchTreat].contains(behavior) { // gallops have an airborne frame
-                        #expect((0..<c.width).contains { PetArt.isSolid(c[$0, c.height - 1]) }, "\(animal) \(behavior)")
+                        #expect((0..<c.width).contains { c.isSolid($0, PetArt.groundRow - 1) }, "\(animal) \(behavior)")
                     }
                 }
             }

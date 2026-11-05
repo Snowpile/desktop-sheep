@@ -46,8 +46,9 @@ private func pet(_ x: Double, _ behavior: Behavior = .walk, facing: Facing = .ri
         var pets = [pet(540, id: 1) { $0.climbChance = 1 }]
         simulate(&pets, in: world, seconds: 5) { $0[0].behavior == .climb }
         #expect(pets[0].behavior == .climb)
-        let origin = pets[0].spriteOrigin(width: 96, height: 96)
-        #expect(origin.x + Double(PetArt.climbFootColumn + 1) * 2 == window.minX)
+        let scale = 1.5
+        let origin = pets[0].spriteOrigin(width: Double(PetArt.width) * scale, height: Double(PetArt.height) * scale)
+        #expect(origin.x + Double(PetArt.climbFootColumn + 1) * scale == window.minX)
         // The rotated art really has its feet in that column.
         let c = PetArt.render(pets[0].pose)
         #expect((0..<c.height).contains { PetArt.isSolid(c[PetArt.climbFootColumn, $0]) })

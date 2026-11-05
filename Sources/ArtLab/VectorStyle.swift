@@ -1,17 +1,18 @@
 import CoreGraphics
 import Foundation
+import SheepCore
 
 /// Style B: smooth vector cartoon drawn with Core Graphics paths: soft radial gradients for
 /// volume, one clean outer outline per group, anti-aliased edges.
 enum VectorStyle {
     /// Sampled polygon for a shape, always wound the same way so unions fill correctly.
-    static func polygon(_ shape: Shape) -> [P] {
-        var pts: [P]
+    static func polygon(_ shape: Shape) -> [RigPoint] {
+        var pts: [RigPoint]
         switch shape {
         case let .ellipse(c, rx, ry, angle):
             pts = (0..<56).map { k in
                 let t = Double(k) / 56 * 2 * .pi
-                return (c + P(x: cos(t) * rx, y: sin(t) * ry)).rotated(angle, around: c)
+                return (c + RigPoint(x: cos(t) * rx, y: sin(t) * ry)).rotated(angle, around: c)
             }
         case let .capsule(a, b, ra, rb):
             let d = b - a, L = max(d.length, 1e-6)
@@ -20,10 +21,10 @@ enum VectorStyle {
             let n = 16
             pts = (0...n).map { k in // back arc around a
                 let t = theta + .pi / 2 + phi + Double(k) / Double(n) * (.pi - 2 * phi)
-                return a + P(x: cos(t) * ra, y: sin(t) * ra)
+                return a + RigPoint(x: cos(t) * ra, y: sin(t) * ra)
             } + (0...n).map { k in // front arc around b
                 let t = theta - .pi / 2 - phi + Double(k) / Double(n) * (.pi + 2 * phi)
-                return b + P(x: cos(t) * rb, y: sin(t) * rb)
+                return b + RigPoint(x: cos(t) * rb, y: sin(t) * rb)
             }
         case let .triangle(a, b, c, r):
             var v = [a, b, c]
@@ -37,7 +38,7 @@ enum VectorStyle {
                 while t2 < t1 { t2 += 2 * .pi }
                 for k in 0...6 {
                     let t = t1 + (t2 - t1) * Double(k) / 6
-                    pts.append(cur + P(x: cos(t) * r, y: sin(t) * r))
+                    pts.append(cur + RigPoint(x: cos(t) * r, y: sin(t) * r))
                 }
             }
         case .line:
@@ -47,14 +48,14 @@ enum VectorStyle {
         return pts
     }
 
-    private static func area(_ p: [P]) -> Double {
+    private static func area(_ p: [RigPoint]) -> Double {
         zip(p, p.dropFirst() + [p[0]]).reduce(0) { $0 + ($1.0.x * $1.1.y - $1.1.x * $1.0.y) } / 2
     }
 
     /// Outward normal of edge a→b for a positively wound polygon (y down).
-    private static func normal(_ a: P, _ b: P) -> P {
+    private static func normal(_ a: RigPoint, _ b: RigPoint) -> RigPoint {
         let d = b - a, l = max(d.length, 1e-9)
-        return P(x: d.y / l, y: -d.x / l)
+        return RigPoint(x: d.y / l, y: -d.x / l)
     }
 
     static func path(_ shape: Shape, scale: Double) -> CGPath {

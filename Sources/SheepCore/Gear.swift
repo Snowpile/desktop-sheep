@@ -26,7 +26,6 @@ extension PetArt {
         case let .hearts(f): drawHearts(&c, frame: f)
         case let .butterfly(f): drawButterfly(&c, frame: f)
         case let .scuffle(f): drawScuffle(&c, frame: f)
-        case .grip: drawGrip(&c)
         case .alert: drawAlert(&c)
         default: break
         }
@@ -86,13 +85,6 @@ extension PetArt {
         c.fill(x: 31, y: 11, width: 2, height: 2, 21)
     }
 
-    /// Front paws hooked over the edge the pet hangs from.
-    private static func drawGrip(_ c: inout PixelCanvas) {
-        for x in [21, 28] {
-            c.fill(x: x, y: 9, width: 3, height: 2, 1)
-            c.fill(x: x + 1, y: 11, width: 1, height: 3, 1)
-        }
-    }
 
     /// Straight pixel line (Bresenham).
     static func line(_ c: inout PixelCanvas, from a: (Int, Int), to b: (Int, Int), _ color: UInt8) {

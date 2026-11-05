@@ -21,7 +21,7 @@ let package = Package(
         // AppKit shell: windows, menu bar item, mouse dragging, rendering.
         .executableTarget(name: "DesktopSheep", dependencies: ["SheepCore"]),
         // Art experiments: renders preview sheets of candidate art styles (docs/previews).
-        .executableTarget(name: "ArtLab"),
+        .executableTarget(name: "ArtLab", dependencies: ["SheepCore"]),
         .testTarget(name: "SheepCoreTests", dependencies: ["SheepCore"], swiftSettings: testSettings),
     ]
 )

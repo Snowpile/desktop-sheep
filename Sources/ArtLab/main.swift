@@ -1,4 +1,5 @@
 import AppKit
+import SheepCore
 
 /// Renders preview sheets of the candidate art styles:
 ///   swift run ArtLab [output-dir]   (default: docs/previews)
@@ -45,8 +46,8 @@ func blit(_ img: PixelStyle.Image, in ctx: CGContext, at origin: CGPoint, zoom z
     } }
 }
 
-func sheet(style: String, title: String, draw: (Species, RigPose, CGContext, CGPoint) -> Void) {
-    let cols = previewPoses.count, rows = Species.allCases.count
+func sheet(style: String, title: String, draw: (Animal, RigPose, CGContext, CGPoint) -> Void) {
+    let cols = previewPoses.count, rows = Animal.allCases.count
     let w = Int(rowLabelWidth + Double(cols) * cell * zoom), h = Int(labelHeight * 2 + Double(rows) * cell * zoom)
     let ctx = makeContext(width: w, height: h)
     ctx.setFillColor(VectorStyle.cg(background))
@@ -55,7 +56,7 @@ func sheet(style: String, title: String, draw: (Species, RigPose, CGContext, CGP
     for (c, pose) in previewPoses.enumerated() {
         drawText(pose.name, at: CGPoint(x: rowLabelWidth + Double(c) * cell * zoom + 12, y: labelHeight + 4), size: 15, in: ctx)
     }
-    for (r, species) in Species.allCases.enumerated() {
+    for (r, species) in Animal.allCases.enumerated() {
         let y = labelHeight * 2 + Double(r) * cell * zoom
         drawText(species.rawValue, at: CGPoint(x: 12, y: y + cell * zoom / 2 - 10), size: 16, in: ctx)
         for (c, pose) in previewPoses.enumerated() {
@@ -84,14 +85,14 @@ sheet(style: "b-vector", title: "Style B: vector cartoon (Core Graphics, shown 4
 do {
     let poses = [previewPoses[0], previewPoses[1], previewPoses[4]]
     let unit = 2.0, cellPx = cell * unit
-    let w = Int(cellPx * Double(Species.allCases.count * poses.count) + 40), h = Int(cellPx * 2 + 90)
+    let w = Int(cellPx * Double(Animal.allCases.count * poses.count) + 40), h = Int(cellPx * 2 + 90)
     let ctx = makeContext(width: w, height: h)
     let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB),
                               colors: [VectorStyle.cg(RGB(0x5C7FA8)), VectorStyle.cg(RGB(0xA9C3D9))] as CFArray, locations: [0, 1])!
     ctx.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: h), options: [])
     drawText("Actual size on a Retina display (64pt): A on top, B below", at: CGPoint(x: 12, y: 8), size: 15, in: ctx, bold: true)
     var x = 20.0
-    for species in Species.allCases {
+    for species in Animal.allCases {
         for pose in poses {
             blit(PixelStyle.render(buildParts(species, pose)), in: ctx, at: CGPoint(x: x, y: 40), zoom: unit)
             ctx.saveGState()
@@ -102,4 +103,43 @@ do {
         }
     }
     save(ctx, "actual-size.png")
+}
+
+// Every behavior as the app draws it (pixel style with effects and props), 3x.
+do {
+    let picks: [(String, Behavior, Int)] = [
+        ("stand", .stand, 0), ("walk", .walk, 1), ("run", .run, 0), ("sit", .sit, 0), ("sleep", .sleep, 3),
+        ("eat", .eat, 1), ("call", .call, 4), ("climb", .climb, 1), ("hang", .hang, 0), ("tumble", .tumble, 2),
+        ("dig", .dig, 0), ("butterfly", .butterfly, 2), ("nuzzle", .nuzzle, 2), ("play-fight", .playFight, 2),
+        ("startled", .startled, 2), ("parachute", .parachute, 0), ("meteor", .meteor, 1), ("jetpack", .jetpack, 0),
+        ("impact", .impact, 3), ("countdown", .countdown, 0),
+    ]
+    let z = 3.0, cellPx = Double(PetArt.width) * z
+    let w = Int(rowLabelWidth + cellPx * Double(picks.count)), h = Int(labelHeight * 2 + cellPx * Double(Animal.allCases.count))
+    let ctx = makeContext(width: w, height: h)
+    ctx.setFillColor(VectorStyle.cg(background))
+    ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+    drawText("In-app frames (style A with effects, shown 3x)", at: CGPoint(x: 12, y: 6), size: 18, in: ctx, bold: true)
+    for (c, pick) in picks.enumerated() {
+        drawText(pick.0, at: CGPoint(x: rowLabelWidth + Double(c) * cellPx + 8, y: labelHeight + 4), size: 13, in: ctx)
+    }
+    for (r, animal) in Animal.allCases.enumerated() {
+        let y = labelHeight * 2 + Double(r) * cellPx
+        drawText(animal.title, at: CGPoint(x: 12, y: y + cellPx / 2 - 10), size: 16, in: ctx)
+        for (c, pick) in picks.enumerated() {
+            let frames = PetArt.frames(for: pick.1, animal: animal)
+            let canvas = PetArt.render(frames[pick.2 % frames.count], animal: animal)
+            let ox = rowLabelWidth + Double(c) * cellPx
+            ctx.setFillColor(VectorStyle.cg((r + c) % 2 == 0 ? RGB(0xE9E6DF) : RGB(0xEFEDE7)))
+            ctx.fill(CGRect(x: ox, y: y, width: cellPx, height: cellPx))
+            for py in 0..<canvas.height { for px in 0..<canvas.width {
+                let v = canvas[px, py]
+                guard v & 0xFF != 0 else { continue }
+                ctx.setFillColor(CGColor(srgbRed: CGFloat(v >> 24 & 0xFF) / 255, green: CGFloat(v >> 16 & 0xFF) / 255,
+                                         blue: CGFloat(v >> 8 & 0xFF) / 255, alpha: CGFloat(v & 0xFF) / 255))
+                ctx.fill(CGRect(x: ox + Double(px) * z, y: y + Double(py) * z, width: z, height: z))
+            } }
+        }
+    }
+    save(ctx, "in-app-frames.png")
 }
