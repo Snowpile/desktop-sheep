@@ -1,0 +1,72 @@
+# Desktop Sheep
+
+A small pixel-art sheep that lives on your macOS desktop, inspired by classic 90s desktop pets.
+All art and code are original.
+
+The sheep wanders along the bottom of the screen (just above the Dock) and along the top edges of
+your windows. It walks, runs, sits, falls asleep, grazes and bleats, and tumbles down when the
+window it was standing on moves or closes. Pick it up with the mouse and drop or throw it anywhere.
+
+## Features
+
+- Transparent, borderless, always-on-top sheep; clicks pass through everywhere except the sheep.
+- Visible on all Spaces, no Dock icon. A menu-bar sheep offers **Add Sheep**, **Remove Sheep**,
+  **Walk on Windows** and **Quit**.
+- Gravity, landing, throwing, turning around at screen edges.
+- Multi-monitor aware: sheep cross between displays that line up, and turn back otherwise.
+- Random behavior state machine: walk, run, sit, sleep, eat grass, bleat (visual only).
+- Pixel art is drawn at runtime from code (`Sources/SheepCore/SheepArt.swift`), 40x32 pixels shown at 2x.
+
+## Requirements
+
+macOS 13 or later, Swift 6 toolchain. Xcode is not required; the Command Line Tools are enough.
+
+## Build and run
+
+```sh
+swift build
+swift run DesktopSheep              # one sheep
+swift run DesktopSheep --count 3    # a small flock
+
+swift test                          # physics, state machine, window-edge and sprite tests
+
+scripts/bundle.sh                   # builds dist/Desktop Sheep.app (release, ad-hoc signed)
+open "dist/Desktop Sheep.app"
+```
+
+Quit from the menu-bar sheep, or `pkill -f DesktopSheep`.
+
+The app is ad-hoc signed, not notarized. If you copy it to another Mac, Gatekeeper may block it;
+right-click the app and choose **Open**, or build it locally.
+
+## Permissions
+
+None are needed. Window positions come from `CGWindowListCopyWindowInfo`, which returns window
+bounds without Screen Recording permission (only window titles require it, and they are not used).
+No Accessibility permission is used: dragging works through the sheep's own window.
+
+## Layout
+
+- `Sources/SheepCore` – pure Swift, no AppKit: world geometry (screens, window tops), physics,
+  the behavior state machine, and the pixel-art renderer. Unit tested.
+- `Sources/DesktopSheep` – the AppKit shell: one small floating panel per sheep, the menu-bar
+  item, mouse dragging and click-through, and the window scanner.
+- `scripts/bundle.sh` – wraps the release binary into an `.app` with `LSUIElement`.
+
+## Known limitations
+
+- Window edges are re-read about twice a second, so a sheep on a fast-moving window may fall off.
+- Windows on other Spaces are ignored; sheep only use windows on the current Space.
+- Fully maximized windows have no room above them, so sheep walk on the Dock-level floor instead.
+- Click-through is decided by polling the mouse position, so the very edge of the sprite can
+  occasionally miss a click.
+
+## Note on Swift Testing with Command Line Tools only
+
+Without Xcode, SwiftPM does not find the Swift Testing macro plugin by itself. `Package.swift`
+adds `-plugin-path` for the Command Line Tools location when it exists, so `swift test` works
+either way.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
