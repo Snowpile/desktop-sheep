@@ -40,6 +40,7 @@ private func run(_ sheep: inout Pet, in world: World, seconds: Double, seed: UIn
     @Test func walksOffTheEndOfAWindow() {
         let w = World(screens: [screen], windowTops: [Platform(y: 400, minX: 300, maxX: 520)])
         var sheep = Pet(x: 510, y: 400, facing: .right, behavior: .walk, duration: 100)
+        sheep.config.hangChance = 0
         run(&sheep, in: w, seconds: 3)
         #expect(sheep.y == screen.minY)
         #expect(sheep.x > 520)
@@ -47,6 +48,7 @@ private func run(_ sheep: inout Pet, in world: World, seconds: Double, seed: UIn
 
     @Test func turnsAroundAtScreenEdge() {
         var sheep = Pet(x: 990 - PetConfig().halfWidth, y: screen.minY, facing: .right, behavior: .walk, duration: 100)
+        sheep.config.climbChance = 0
         run(&sheep, in: world, seconds: 1)
         #expect(sheep.facing == .left)
         #expect(sheep.x + sheep.config.halfWidth <= screen.maxX)
@@ -67,6 +69,7 @@ private func run(_ sheep: inout Pet, in world: World, seconds: Double, seed: UIn
         let right = Rect(x: 1000, y: 120, width: 800, height: 630)
         let w = World(screens: [screen, right])
         var sheep = Pet(x: 960, y: 50, facing: .right, behavior: .walk, duration: 100)
+        sheep.config.climbChance = 0
         run(&sheep, in: w, seconds: 2)
         #expect(sheep.facing == .left)
         #expect(sheep.x < 1000)
@@ -125,8 +128,8 @@ private func run(_ sheep: inout Pet, in world: World, seconds: Double, seed: UIn
         }
     }
 
-    @Test func sleepOnlyFollowsSitting() {
-        for b in Behavior.allCases where b != .sit {
+    @Test func sleepOnlyFollowsRestingStates() {
+        for b in Behavior.allCases where ![.sit, .yawn, .ride].contains(b) {
             #expect(!Pet.successors(of: b).contains(.sleep))
         }
     }

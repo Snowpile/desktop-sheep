@@ -26,7 +26,11 @@ public struct PetSettings: Codable, Equatable, Sendable {
     public static let speedRange: ClosedRange<Double> = 0.25...3
 
     /// Idle behaviors the user can switch off. Standing can't be disabled.
-    public static let toggleableBehaviors: [Behavior] = [.walk, .run, .sit, .sleep, .eat, .call]
+    public static let toggleableBehaviors: [Behavior] = [
+        .walk, .run, .sit, .sleep, .eat, .call,
+        .climb, .hang, .tumble, .dig, .butterfly, .yawn,
+        .nuzzle, .chase, .follow, .playFight, .ride,
+    ]
 
     public var petCount = 1
     public var animal: AnimalChoice = .only(.sheep)
@@ -66,7 +70,10 @@ public struct PetSettings: Codable, Equatable, Sendable {
     /// Applies the settings that affect simulation to a sheep config.
     public func apply(to config: inout PetConfig) {
         config.speedMultiplier = speed
-        config.enabledBehaviors = enabledBehaviors
+        var enabled = enabledBehaviors
+        // Fleeing comes with chasing.
+        if !enabled.contains(.chase) { enabled.remove(.flee) }
+        config.enabledBehaviors = enabled
         config.walkOffScreen = walkOffScreen
     }
 

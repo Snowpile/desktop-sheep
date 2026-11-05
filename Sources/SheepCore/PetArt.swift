@@ -91,6 +91,8 @@ public struct Pose: Hashable, Sendable {
     /// Props and effects drawn around the whole pet (parachute, flames…).
     public var gear: Gear = .none
     public var finale: FinaleLook = .none
+    /// Quarter turns of the whole pet: 1 = head up (climbing), 2 = upside down, 3 = head down.
+    public var rotation = 0
 
     public enum Gear: Hashable, Sendable {
         case none
@@ -99,6 +101,11 @@ public struct Pose: Hashable, Sendable {
         case jetpack(Int)
         case impact(Int)
         case countdown(Int)
+        case hearts(Int)
+        case dirt(Int)
+        case butterfly(Int)
+        case scuffle(Int)
+        case grip
     }
 
     public init() {}
@@ -151,6 +158,8 @@ public enum PetArt {
         (0x5A, 0x54, 0x5C, 255), // 32 ash
         (0x33, 0x2E, 0x36, 255), // 33 char
         (0xFF, 0xF2, 0x9A, 90),  // 34 tractor beam (translucent)
+        (0x8A, 0x5A, 0x36, 255), // 35 dirt
+        (0x5E, 0x3B, 0x22, 255), // 36 dark dirt
     ]
 
     /// Fully opaque palette indices (used for hit testing; the shadow doesn't count).
@@ -176,12 +185,27 @@ public enum PetArt {
         case .impact: return 5
         case .countdown: return 1
         case .finale: return 10
+        case .climb: return 6
+        case .hang: return 2
+        case .tumble: return 6.7
+        case .dig: return 6
+        case .butterfly: return 8
+        case .yawn: return 2.5
+        case .nuzzle: return 3
+        case .chase, .flee: return 14
+        case .follow: return 8
+        case .playFight: return 8
+        case .ride: return 2
         }
     }
 
     public static func frames(for behavior: Behavior, animal: Animal = .sheep,
                               finale: FinaleStyle = .vanish) -> [Pose] {
         if behavior == .finale { return finaleFrames(finale) }
+        if animal.hops, [.walk, .follow, .butterfly].contains(behavior) {
+            return withGear(hopFrames(height: 4), behavior == .butterfly ? { .butterfly($0) } : nil)
+        }
+        if animal.hops, [.run, .chase, .flee].contains(behavior) { return hopFrames(height: 8) }
         if animal.hops, behavior == .walk { return hopFrames(height: 4) }
         if animal.hops, behavior == .run { return hopFrames(height: 8) }
         switch behavior {
@@ -200,6 +224,18 @@ public enum PetArt {
         case .impact: return (0..<8).map(impactPose)
         case .countdown: return countdownFrames
         case .finale: return finaleFrames(finale)
+        case .climb: return walkFrames.map { var p = $0; p.rotation = 1; p.shadow = false; p.earUp = true; return p }
+        case .hang: return hangFrames
+        case .tumble: return tumbleFrames
+        case .dig: return digFrames
+        case .butterfly: return withGear(walkFrames.map { var p = $0; p.headDY -= 1; p.eyes = .happy; return p }) { .butterfly($0) }
+        case .yawn: return yawnFrames
+        case .nuzzle: return nuzzleFrames
+        case .chase: return runFrames.map { var p = $0; p.eyes = .happy; return p }
+        case .flee: return runFrames.map { var p = $0; p.eyes = .wide; p.mouthOpen = true; return p }
+        case .follow: return walkFrames
+        case .playFight: return playFightFrames
+        case .ride: return sitFrames.map { var p = $0; p.shadow = false; p.eyes = $0.earUp ? .happy : .open; return p }
         }
     }
 
@@ -349,6 +385,86 @@ public enum PetArt {
         }
     }
 
+    /// Adds per-frame gear to a list of frames.
+    private static func withGear(_ frames: [Pose], _ gear: ((Int) -> Pose.Gear)?) -> [Pose] {
+        guard let gear else { return frames }
+        return frames.enumerated().map { i, p in var q = p; q.gear = gear(i); return q }
+    }
+
+    /// Sprite column where a climbing pet's feet touch the wall (right-facing, after rotation).
+    public static let climbFootColumn = 41
+    /// Sprite row a hanging pet's paws grip.
+    public static let hangGripRow = 26
+
+    private static let hangFrames: [Pose] = [-1, 1].map { w in
+        make {
+            $0.legs = .dangling(wiggle: w)
+            $0.eyes = .wide
+            $0.earUp = true
+            $0.headDY = -2
+            $0.bodyDY = 1
+            $0.tailDY = w > 0 ? -1 : 0
+            $0.shadow = false
+            $0.gear = .grip
+        }
+    }
+
+    /// Curled up and rolling forward (head goes down first), then upright again.
+    private static let tumbleFrames: [Pose] = [0, 3, 2, 1, 0, 3, 2, 1].map { r in
+        make {
+            $0.legs = .folded
+            $0.bodyDY = 2
+            $0.headDY = 2
+            $0.eyes = .closed
+            $0.rotation = r
+            $0.shadow = r == 0
+        }
+    }
+
+    /// Front paws scrabbling, dirt flying out behind.
+    private static let digFrames: [Pose] = (0..<4).map { i in
+        make {
+            $0.legs = .standing(dx: [0, 0, i % 2 == 0 ? 1 : -1, i % 2 == 0 ? -1 : 1], lifted: [false, false, i % 2 == 0, i % 2 == 1])
+            $0.headDY = 5
+            $0.headDX = 1
+            $0.bodyDY = 1
+            $0.eyes = .happy
+            $0.tailDY = i % 2 == 0 ? -1 : 0
+            $0.gear = .dirt(i)
+        }
+    }
+
+    private static let yawnFrames: [Pose] = (0..<4).map { i in
+        make {
+            $0.headDY = -1 - min(i, 2) / 2
+            $0.eyes = .closed
+            $0.mouthOpen = i > 0
+            $0.earUp = false
+        }
+    }
+
+    private static let nuzzleFrames: [Pose] = (0..<4).map { i in
+        make {
+            $0.headDX = 1
+            $0.headDY = i % 2 == 0 ? 1 : 2
+            $0.eyes = .happy
+            $0.tailDY = i % 2 == 0 ? -1 : 0
+            $0.gear = .hearts(i)
+        }
+    }
+
+    /// Hopping about face to face, with a dust cloud between.
+    private static let playFightFrames: [Pose] = [0, 3, 5, 2].enumerated().map { i, lift in
+        make {
+            $0.lift = lift
+            $0.legs = lift > 0 ? .spread : .standing(dx: [0, 0, 0, 0], lifted: [false, false, false, false])
+            $0.eyes = i % 2 == 0 ? .wide : .happy
+            $0.mouthOpen = i % 2 == 0
+            $0.earUp = true
+            $0.gear = .scuffle(i)
+        }
+    }
+
     private static func parachutePose(_ sway: Int) -> Pose {
         make {
             $0.legs = .dangling(wiggle: sway)
@@ -411,8 +527,24 @@ public enum PetArt {
         drawGearInFront(&c, pose.gear)
         c.originX = 0
         c.originY = 0
+        if pose.rotation % 4 != 0 { rotate(&c, quarterTurns: pose.rotation) }
         applyFinale(&c, pose.finale)
         return c
+    }
+
+    /// Rotates the sprite counter-clockwise (as seen on screen) by quarter turns around a
+    /// point inside the pet, so a rotated pet still fits the sprite.
+    static func rotate(_ c: inout PixelCanvas, quarterTurns: Int) {
+        let cx = 24, cy = 30
+        for _ in 0..<((quarterTurns % 4 + 4) % 4) {
+            let src = c
+            for y in 0..<c.height {
+                for x in 0..<c.width {
+                    // Destination (x, y) takes the source pixel that rotates onto it.
+                    c.pixels[y * c.width + x] = src.pixel(cx - (y - cy), cy + (x - cx))
+                }
+            }
+        }
     }
 
     private static func renderSheep(_ c: inout PixelCanvas, _ pose: Pose) {

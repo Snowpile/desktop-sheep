@@ -11,7 +11,9 @@ extension PetArt {
             drawFlameTrail(&c, frame: frame)
         case let .jetpack(frame):
             drawJetpack(&c, frame: frame)
-        case .none, .impact, .countdown:
+        case let .dirt(frame):
+            drawDirt(&c, frame: frame)
+        case .none, .impact, .countdown, .hearts, .butterfly, .scuffle, .grip:
             break
         }
     }
@@ -19,7 +21,68 @@ extension PetArt {
     static func drawGearInFront(_ c: inout PixelCanvas, _ gear: Pose.Gear) {
         if case let .impact(frame) = gear { drawImpact(&c, frame: frame) }
         if case let .jetpack(frame) = gear { drawJetFlame(&c, frame: frame) }
-        if case let .countdown(n) = gear { drawCountdown(&c, digit: n) }
+        switch gear {
+        case let .countdown(n): drawCountdown(&c, digit: n)
+        case let .hearts(f): drawHearts(&c, frame: f)
+        case let .butterfly(f): drawButterfly(&c, frame: f)
+        case let .scuffle(f): drawScuffle(&c, frame: f)
+        case .grip: drawGrip(&c)
+        default: break
+        }
+    }
+
+    static func heart(_ c: inout PixelCanvas, x: Int, y: Int, _ color: UInt8 = 6) {
+        c.plot([(x, y), (x + 2, y), (x - 1, y + 1), (x, y + 1), (x + 1, y + 1), (x + 2, y + 1),
+                (x + 3, y + 1), (x, y + 2), (x + 1, y + 2), (x + 2, y + 2), (x + 1, y + 3)], color)
+    }
+
+    private static func drawHearts(_ c: inout PixelCanvas, frame f: Int) {
+        heart(&c, x: 30, y: 6 - f)
+        if f >= 2 { heart(&c, x: 35, y: 2 - (f - 2)) }
+    }
+
+    /// Dirt clods thrown back between the hind legs, and a growing mound in front.
+    private static func drawDirt(_ c: inout PixelCanvas, frame f: Int) {
+        let clods = [(-1, 24), (-3, 20), (-5, 17), (-2, 15), (-6, 22)]
+        for (i, (x, y)) in clods.enumerated() where (i + f) % 2 == 0 {
+            c.fill(x: x - f % 2, y: y - f % 3, width: 2, height: 2, i % 2 == 0 ? 35 : 36)
+        }
+        c.fill(x: 29, y: ground - 1, width: 6, height: 2, 36)
+        c.fill(x: 30, y: ground - 2, width: 4, height: 1, 35)
+    }
+
+    /// A butterfly fluttering just ahead of the pet's nose.
+    private static func drawButterfly(_ c: inout PixelCanvas, frame f: Int) {
+        let bob = [0, -2, -3, -2, 0, 1, 2, 1][f % 8]
+        let x = 38 + (f % 4 < 2 ? 0 : 1), y = 6 + bob
+        let open = f % 2 == 0
+        c.fill(x: x, y: y, width: 1, height: 3, 1)
+        if open {
+            c.fill(x: x - 3, y: y - 1, width: 3, height: 2, 22)
+            c.fill(x: x + 1, y: y - 1, width: 3, height: 2, 22)
+            c.plot([(x - 2, y + 1), (x - 1, y + 2), (x + 2, y + 1), (x + 1, y + 2)], 26)
+        } else {
+            c.fill(x: x - 1, y: y - 2, width: 1, height: 3, 22)
+            c.fill(x: x + 1, y: y - 2, width: 1, height: 3, 22)
+        }
+    }
+
+    /// A tumbling dust cloud with stars in front of the face.
+    private static func drawScuffle(_ c: inout PixelCanvas, frame f: Int) {
+        c.disc(cx: 38, cy: 24 - f % 2, r: 3 + f % 2, 30)
+        c.disc(cx: 39, cy: 24 - f % 2, r: 2 + f % 2, 29)
+        let star = [(0, -1), (-1, 0), (0, 0), (1, 0), (0, 1)]
+        let spots = [(36, 18), (41, 20), (38, 29)]
+        let s = spots[f % 3]
+        c.plot(star.map { ($0.0 + s.0, $0.1 + s.1) }, 26)
+    }
+
+    /// Front paws hooked over the edge the pet hangs from.
+    private static func drawGrip(_ c: inout PixelCanvas) {
+        for x in [21, 28] {
+            c.fill(x: x, y: 9, width: 3, height: 2, 1)
+            c.fill(x: x + 1, y: 11, width: 1, height: 3, 1)
+        }
     }
 
     /// Straight pixel line (Bresenham).

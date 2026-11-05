@@ -73,16 +73,25 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         speedSlider.action = #selector(speedChanged)
         speedSlider.widthAnchor.constraint(equalToConstant: 180).isActive = true
 
-        let behaviorStack = NSStackView()
-        behaviorStack.orientation = .vertical
-        behaviorStack.alignment = .leading
-        behaviorStack.spacing = 4
-        for behavior in PetSettings.toggleableBehaviors {
+        // Two columns of checkboxes.
+        let checks = PetSettings.toggleableBehaviors.map { behavior -> NSButton in
             let check = NSButton(checkboxWithTitle: Self.title(for: behavior), target: self, action: #selector(behaviorChanged(_:)))
             check.identifier = NSUserInterfaceItemIdentifier(behavior.rawValue)
             behaviorChecks[behavior] = check
-            behaviorStack.addArrangedSubview(check)
+            return check
         }
+        let half = (checks.count + 1) / 2
+        let columns = [Array(checks[..<half]), Array(checks[half...])].map { column -> NSStackView in
+            let stack = NSStackView(views: column)
+            stack.orientation = .vertical
+            stack.alignment = .leading
+            stack.spacing = 4
+            return stack
+        }
+        let behaviorStack = NSStackView(views: columns)
+        behaviorStack.orientation = .horizontal
+        behaviorStack.alignment = .top
+        behaviorStack.spacing = 16
 
         let grid = NSGridView(views: [
             [label("Animal:"), animalPopup],
@@ -124,6 +133,17 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         case .sleep: return "Sleep"
         case .eat: return "Eat (grass, fish, bones…)"
         case .call: return "Call (bleat, meow, bark…)"
+        case .climb: return "Climb walls and windows"
+        case .hang: return "Hang from window edges"
+        case .tumble: return "Trip and tumble"
+        case .dig: return "Dig"
+        case .butterfly: return "Chase butterflies"
+        case .yawn: return "Yawn (contagious)"
+        case .nuzzle: return "Nuzzle"
+        case .chase: return "Chase and tag"
+        case .follow: return "Follow the leader"
+        case .playFight: return "Play-fight"
+        case .ride: return "Stack up on each other"
         default: return behavior.rawValue.capitalized
         }
     }
