@@ -1,9 +1,21 @@
-/// What the sheep is currently doing.
+import Foundation
+
+/// What the pet is currently doing.
 public enum Behavior: String, CaseIterable, Codable, Sendable {
     case stand, walk, run, sit, sleep, eat, call, fall, dragged
+    /// Arrivals (see `EntryStyle`), and the dazed moment after a meteor landing.
+    case parachute, meteor, jetpack, impact
 
     /// Behaviors that happen while standing on something.
-    public var isGrounded: Bool { self != .fall && self != .dragged }
+    public var isGrounded: Bool {
+        switch self {
+        case .fall, .dragged, .parachute, .meteor, .jetpack: return false
+        default: return true
+        }
+    }
+
+    /// True while arriving in style.
+    public var isEntry: Bool { self == .parachute || self == .meteor || self == .jetpack }
 }
 
 public enum Facing: Sendable {
@@ -27,6 +39,9 @@ public struct PetConfig: Sendable {
     public var snapDistance: Double = 6
     /// Impacts faster than this make the sheep bleat in surprise when it lands.
     public var startleSpeed: Double = 900
+    public var parachuteSpeed: Double = 70
+    public var meteorSpeed: Double = 650
+    public var jetpackSpeed: Double = 170
     /// Multiplies walk and run speed (user setting).
     public var speedMultiplier: Double = 1
     /// Behaviors the state machine may pick. `stand` is always allowed.
@@ -54,6 +69,8 @@ public struct Pet: Sendable {
     public var animal: Animal
     /// 0..<1, desynchronizes animation details (like blinking) between pets.
     public var phase: Double = 0
+    /// Where a jetpack arrival is heading.
+    private var targetX: Double = 0
 
     public init(x: Double, y: Double, animal: Animal = .sheep, facing: Facing = .right, behavior: Behavior = .fall,
                 duration: Double = 2, config: PetConfig = PetConfig()) {
@@ -66,13 +83,51 @@ public struct Pet: Sendable {
         self.config = config
     }
 
-    /// A sheep dropped from the top of a random screen.
+    /// A new pet arriving on a random screen in the given style.
     public static func spawn<R: RandomNumberGenerator>(in world: World, rng: inout R, animal: Animal = .sheep,
+                                                       entry: EntryStyle = .drop,
                                                        config: PetConfig = PetConfig()) -> Pet {
-        var sheep = Pet(x: 0, y: 0, animal: animal, facing: Bool.random(using: &rng) ? .left : .right, config: config)
-        sheep.phase = Double.random(in: 0..<1, using: &rng)
-        sheep.respawn(in: world, rng: &rng)
-        return sheep
+        var pet = Pet(x: 0, y: 0, animal: animal, facing: Bool.random(using: &rng) ? .left : .right, config: config)
+        pet.phase = Double.random(in: 0..<1, using: &rng)
+        pet.enter(in: world, style: entry, rng: &rng)
+        return pet
+    }
+
+    /// Places the pet off- or on-screen and starts its arrival.
+    public mutating func enter<R: RandomNumberGenerator>(in world: World, style: EntryStyle, rng: inout R) {
+        guard let screen = world.screens.randomElement(using: &rng) else { return }
+        let margin = min(config.halfWidth + 30, screen.width / 2)
+        let landingX = Double.random(in: (screen.minX + margin)...(screen.maxX - margin), using: &rng)
+        switch style.resolved(using: &rng) {
+        case .drop, .random:
+            x = landingX
+            y = screen.maxY - config.height
+            startFalling(vx: 0, vy: 0)
+        case .parachute:
+            x = landingX
+            y = screen.maxY - config.height
+            vx = 0
+            vy = -config.parachuteSpeed
+            setBehavior(.parachute, duration: .infinity)
+        case .meteor:
+            // Start above the screen, aimed so it comes down at `landingX`.
+            let startY = screen.maxY + 40
+            vx = (Bool.random(using: &rng) ? 1 : -1) * config.meteorSpeed * 0.45
+            vy = -config.meteorSpeed
+            x = landingX - vx * (startY - screen.minY) / config.meteorSpeed
+            y = startY
+            facing = vx > 0 ? .right : .left
+            setBehavior(.meteor, duration: .infinity)
+        case .jetpack:
+            let fromLeft = Bool.random(using: &rng)
+            x = fromLeft ? screen.minX - 60 : screen.maxX + 60
+            y = screen.minY + screen.height * Double.random(in: 0.45...0.8, using: &rng)
+            targetX = landingX
+            facing = fromLeft ? .right : .left
+            vx = facing.sign * config.jetpackSpeed
+            vy = -config.jetpackSpeed * 0.15
+            setBehavior(.jetpack, duration: .infinity)
+        }
     }
 
     // MARK: - Simulation
@@ -87,6 +142,8 @@ public struct Pet: Sendable {
             return
         case .fall:
             integrateFall(dt: dt, world: world, rng: &rng)
+        case .parachute, .meteor, .jetpack:
+            integrateEntry(dt: dt, world: world, rng: &rng)
         default:
             guard let surface = nearestSupport(world: world) else {
                 startFalling(vx: movingSpeed * facing.sign * 0.5, vy: 0)
@@ -220,10 +277,7 @@ public struct Pet: Sendable {
         }
 
         if vy <= 0 {
-            let landing = world.platforms
-                .filter { $0.spans(newX) && $0.y <= y + 0.5 && $0.y >= newY }
-                .max { $0.y < $1.y }
-            if let landing {
+            if let landing = landingPlatform(world: world, x: newX, fromY: y, toY: newY) {
                 let impact = -vy
                 x = newX
                 y = landing.y
@@ -246,6 +300,54 @@ public struct Pet: Sendable {
         if y < lowestFloor - 200 || world.screen(containingX: x, y: max(y, lowestFloor)) == nil && y < lowestFloor {
             respawn(in: world, rng: &rng)
         }
+    }
+
+    /// The highest platform crossed while moving down from `fromY` to `toY` at `x`.
+    private func landingPlatform(world: World, x: Double, fromY: Double, toY: Double) -> Platform? {
+        world.platforms
+            .filter { $0.spans(x) && $0.y <= fromY + 0.5 && $0.y >= toY }
+            .max { $0.y < $1.y }
+    }
+
+    private mutating func integrateEntry<R: RandomNumberGenerator>(dt: Double, world: World, rng: inout R) {
+        switch behavior {
+        case .parachute:
+            // Drift down, swaying gently.
+            vx = sin(timeInBehavior * 1.6) * 28
+            vy = -config.parachuteSpeed
+        case .jetpack:
+            if abs(targetX - x) < 6 || (targetX - x) * facing.sign < 0 {
+                // Arrived over the landing spot: hover straight down.
+                vx = 0
+                vy = -config.jetpackSpeed * 0.6
+            }
+        default:
+            break // meteors fly straight
+        }
+        let newX = x + vx * dt
+        var newY = y + vy * dt
+        if behavior != .meteor, let screen = world.screen(containingX: newX, y: max(newY, 0)) {
+            newY = min(newY, screen.maxY - config.height)
+        }
+        // Only land once actually over a display (jetpacks and meteors start outside).
+        if world.screen(containingX: newX, y: max(newY, world.screens.map(\.minY).min() ?? 0)) != nil,
+           let landing = landingPlatform(world: world, x: newX, fromY: y, toY: newY) {
+            x = newX
+            y = landing.y
+            let wasMeteor = behavior == .meteor
+            vx = 0
+            vy = 0
+            if wasMeteor {
+                setBehavior(.impact, duration: Self.durationRange(for: .impact).lowerBound)
+            } else {
+                setBehavior(.stand, duration: Double.random(in: 0.6...1.4, using: &rng))
+            }
+            return
+        }
+        x = newX
+        y = newY
+        let lowestFloor = world.screens.map(\.minY).min() ?? 0
+        if y < lowestFloor - 200 || timeInBehavior > 30 { respawn(in: world, rng: &rng) }
     }
 
     private func nearestScreen(_ world: World) -> Rect {
@@ -278,6 +380,7 @@ public struct Pet: Sendable {
         .sleep: [(.sit, 50), (.stand, 50)],
         .eat: [(.stand, 35), (.walk, 40), (.eat, 15), (.call, 10)],
         .call: [(.stand, 45), (.walk, 45), (.run, 10)],
+        .impact: [(.stand, 70), (.call, 30)],
     ]
 
     /// Allowed successors of a grounded behavior.
@@ -295,7 +398,8 @@ public struct Pet: Sendable {
         case .sleep: return 6...16
         case .eat: return 3...6
         case .call: return 1.2...1.2
-        case .fall, .dragged: return .infinity ... .infinity
+        case .impact: return 1.6...1.6
+        case .fall, .dragged, .parachute, .meteor, .jetpack: return .infinity ... .infinity
         }
     }
 

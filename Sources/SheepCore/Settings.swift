@@ -1,11 +1,21 @@
 /// How a new pet arrives on the desktop.
 public enum EntryStyle: String, CaseIterable, Codable, Sendable {
-    case drop
+    case drop, parachute, meteor, jetpack, random
 
     public var title: String {
         switch self {
         case .drop: return "Drop from the top"
+        case .parachute: return "Parachute"
+        case .meteor: return "Flaming meteor"
+        case .jetpack: return "Jetpack"
+        case .random: return "Surprise me"
         }
+    }
+
+    /// `random` picks one of the others.
+    public func resolved<R: RandomNumberGenerator>(using rng: inout R) -> EntryStyle {
+        guard self == .random else { return self }
+        return [EntryStyle.drop, .parachute, .meteor, .jetpack].randomElement(using: &rng)!
     }
 }
 

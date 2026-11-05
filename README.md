@@ -18,6 +18,9 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
   single pet to change just that one.
 - Settings window: animal, number of pets, entry style, walk on windows, speed, and which idle behaviors
   are allowed. Choices are saved in UserDefaults (`com.snowpile.desktop-sheep`) and restored on launch.
+- New pets arrive in style (menu **New Pets Arrive By** or Settings): dropped from the top,
+  drifting down on a parachute, as a flaming meteor that lands with a dazed thud, by jetpack from
+  the side of the screen, or a surprise pick.
 - Gravity, landing, throwing, turning around at screen edges.
 - Multi-monitor aware: sheep cross between displays that line up, and turn back otherwise.
 - Random behavior state machine: walk, run, sit, sleep, eat, call (bleat/meow/bark…, visual only).
