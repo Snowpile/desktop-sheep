@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var addItem: NSMenuItem?
     private var walkOnWindowsItem: NSMenuItem?
     private var animalItems: [NSMenuItem] = []
+    private var entryItems: [NSMenuItem] = []
     private var currentAnimalChoice: AnimalChoice?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -66,6 +67,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             animalItems.append(item)
         }
         menu.addItem(withTitle: "Animal (All Pets)", action: nil, keyEquivalent: "").submenu = animalMenu
+        let entryMenu = NSMenu()
+        for (i, style) in EntryStyle.allCases.enumerated() {
+            let item = entryMenu.addItem(withTitle: style.title, action: #selector(chooseEntry(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = i
+            entryItems.append(item)
+        }
+        menu.addItem(withTitle: "New Pets Arrive By", action: nil, keyEquivalent: "").submenu = entryMenu
         menu.addItem(.separator())
         walkOnWindowsItem = add(menu, "Walk on Windows", #selector(toggleWalkOnWindows), "")
         add(menu, "Settings…", #selector(showSettings), ",")
@@ -86,6 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         removeItem?.isEnabled = !flock.isEmpty
         addItem?.isEnabled = flock.count < PetSettings.maxPets
         walkOnWindowsItem?.state = store.settings.walkOnWindows ? .on : .off
+        for item in entryItems { item.state = EntryStyle.allCases[item.tag] == store.settings.entryStyle ? .on : .off }
         for item in animalItems { item.state = AnimalChoice.all[item.tag] == store.settings.animal ? .on : .off }
     }
 
@@ -93,6 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func removePetAction() { store.update { $0.petCount -= 1 } }
     @objc private func toggleWalkOnWindows() { store.update { $0.walkOnWindows.toggle() } }
     @objc private func showSettings() { settingsWindow.show() }
+    @objc private func chooseEntry(_ sender: NSMenuItem) { store.update { $0.entryStyle = EntryStyle.allCases[sender.tag] } }
     @objc private func chooseAnimal(_ sender: NSMenuItem) { store.update { $0.animal = AnimalChoice.all[sender.tag] } }
 
     // MARK: Flock
@@ -121,7 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             var config = PetConfig()
             store.settings.apply(to: &config)
             let animal = store.settings.animal.pick(using: &rng)
-            flock.append(PetController(sheep: Pet.spawn(in: world, rng: &rng, animal: animal, config: config)))
+            flock.append(PetController(sheep: Pet.spawn(in: world, rng: &rng, animal: animal, entry: store.settings.entryStyle, config: config)))
         }
     }
 

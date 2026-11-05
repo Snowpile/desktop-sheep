@@ -88,6 +88,16 @@ public struct Pose: Hashable, Sendable {
     /// Soft shadow on the ground (only while standing on something).
     public var shadow = true
     public var effect: Effect = .none
+    /// Props and effects drawn around the whole pet (parachute, flames…).
+    public var gear: Gear = .none
+
+    public enum Gear: Hashable, Sendable {
+        case none
+        case parachute(sway: Int)
+        case meteor(Int)
+        case jetpack(Int)
+        case impact(Int)
+    }
 
     public init() {}
 }
@@ -130,6 +140,14 @@ public enum PetArt {
         (0x7F, 0xB7, 0xD9, 255), // 23 fish blue
         (0xF2, 0xE6, 0xCC, 255), // 24 bone
         (0xE8, 0xB0, 0x7A, 255), // 25 tail ring tan
+        (0xFF, 0xE0, 0x5A, 255), // 26 flame yellow
+        (0xFF, 0x8C, 0x2A, 255), // 27 flame orange
+        (0xDE, 0x3E, 0x26, 255), // 28 flame red
+        (0xE2, 0xDF, 0xE6, 255), // 29 smoke light
+        (0xA6, 0xA1, 0xAD, 255), // 30 smoke dark
+        (0x86, 0x8C, 0x98, 255), // 31 metal
+        (0x5A, 0x54, 0x5C, 255), // 32 ash
+        (0x33, 0x2E, 0x36, 255), // 33 char
     ]
 
     /// Fully opaque palette indices (used for hit testing; the shadow doesn't count).
@@ -150,6 +168,9 @@ public enum PetArt {
         case .dragged: return 6
         case .stand, .sit: return 2
         case .fall: return 1
+        case .parachute: return 1.5
+        case .meteor, .jetpack: return 12
+        case .impact: return 5
         }
     }
 
@@ -166,6 +187,10 @@ public enum PetArt {
         case .call: return bleatFrames
         case .fall: return [fallPose]
         case .dragged: return [draggedPose(-1), draggedPose(1)]
+        case .parachute: return [-1, 0, 1, 0].map(parachutePose)
+        case .meteor: return (0..<3).map(meteorPose)
+        case .jetpack: return (0..<2).map(jetpackPose)
+        case .impact: return (0..<8).map(impactPose)
         }
     }
 
@@ -310,6 +335,49 @@ public enum PetArt {
         }
     }
 
+    private static func parachutePose(_ sway: Int) -> Pose {
+        make {
+            $0.legs = .dangling(wiggle: sway)
+            $0.eyes = .happy
+            $0.earUp = true
+            $0.shadow = false
+            $0.gear = .parachute(sway: sway)
+        }
+    }
+
+    private static func meteorPose(_ frame: Int) -> Pose {
+        make {
+            $0.legs = .spread
+            $0.eyes = .wide
+            $0.mouthOpen = true
+            $0.earUp = true
+            $0.shadow = false
+            $0.gear = .meteor(frame)
+        }
+    }
+
+    private static func jetpackPose(_ frame: Int) -> Pose {
+        make {
+            $0.legs = .dangling(wiggle: frame == 0 ? -1 : 1)
+            $0.eyes = .happy
+            $0.earUp = true
+            $0.tailDY = -1
+            $0.shadow = false
+            $0.gear = .jetpack(frame)
+        }
+    }
+
+    /// Dazed after a meteor landing: dust settles, stars circle.
+    private static func impactPose(_ frame: Int) -> Pose {
+        make {
+            $0.legs = .folded
+            $0.bodyDY = frame < 2 ? 4 - frame : 2
+            $0.headDY = 3
+            $0.eyes = .closed
+            $0.gear = .impact(frame)
+        }
+    }
+
     // MARK: Drawing (body space: 40x32, ground on row 31)
 
     static let ground = 31
@@ -321,7 +389,9 @@ public enum PetArt {
         c.originY = bodyOrigin.y
         if pose.shadow { c.fill(x: 4, y: ground, width: 28, height: 1, 10) }
         c.originY -= pose.lift
+        drawGearBehind(&c, pose.gear)
         if animal == .sheep { renderSheep(&c, pose) } else { renderCritter(&c, pose, animal) }
+        drawGearInFront(&c, pose.gear)
         c.originX = 0
         c.originY = 0
         return c
