@@ -26,6 +26,10 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
   pets go at once: burn to a pile of ash that blows away, explode into confetti, vanish in a puff,
   float away on balloons, get beamed up, shrink to nothing, or a surprise mix. Afterwards the menu
   offers **Bring Back Pets**.
+- Pets notice the mouse cursor: idle pets look at it, now and then one chases it, and a fast
+  swipe nearby startles them into a jump and a dash away. **⌥-click anywhere** (or menu
+  **Drop a Treat**) drops a treat that falls onto the nearest surface; the closest pet runs over
+  and eats it.
 - Gravity, landing, throwing, turning around at screen edges, or (optional setting) walking off
   the outer edge of the screen and leaving, with a chance of a new pet showing up later.
 - Multi-monitor aware: sheep cross between displays that line up, and turn back otherwise.
@@ -73,7 +77,8 @@ Quit from the menu-bar sheep, or `pkill -f DesktopSheep`.
 
 ## Permissions
 
-None are needed. Window positions come from `CGWindowListCopyWindowInfo`, which returns window
+None are needed. Treat drops use a global mouse-click monitor, which macOS allows without
+Accessibility permission (only keyboard monitoring needs it). Window positions come from `CGWindowListCopyWindowInfo`, which returns window
 bounds without Screen Recording permission (only window titles require it, and they are not used).
 No Accessibility permission is used: dragging works through the sheep's own window.
 

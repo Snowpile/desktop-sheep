@@ -13,7 +13,7 @@ extension PetArt {
             drawJetpack(&c, frame: frame)
         case let .dirt(frame):
             drawDirt(&c, frame: frame)
-        case .none, .impact, .countdown, .hearts, .butterfly, .scuffle, .grip:
+        case .none, .impact, .countdown, .hearts, .butterfly, .scuffle, .grip, .alert:
             break
         }
     }
@@ -27,6 +27,7 @@ extension PetArt {
         case let .butterfly(f): drawButterfly(&c, frame: f)
         case let .scuffle(f): drawScuffle(&c, frame: f)
         case .grip: drawGrip(&c)
+        case .alert: drawAlert(&c)
         default: break
         }
     }
@@ -75,6 +76,14 @@ extension PetArt {
         let spots = [(36, 18), (41, 20), (38, 29)]
         let s = spots[f % 3]
         c.plot(star.map { ($0.0 + s.0, $0.1 + s.1) }, 26)
+    }
+
+    /// A red "!" over the head.
+    private static func drawAlert(_ c: inout PixelCanvas) {
+        c.fill(x: 30, y: 0, width: 4, height: 9, 1)
+        c.fill(x: 30, y: 10, width: 4, height: 4, 1)
+        c.fill(x: 31, y: 1, width: 2, height: 7, 21)
+        c.fill(x: 31, y: 11, width: 2, height: 2, 21)
     }
 
     /// Front paws hooked over the edge the pet hangs from.

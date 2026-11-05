@@ -13,6 +13,8 @@ public enum Behavior: String, CaseIterable, Codable, Sendable {
     case dig, butterfly, yawn
     /// With other pets (started by `Social`). `ride` is sitting on another pet's back.
     case nuzzle, chase, flee, follow, playFight, ride
+    /// Reacting to the mouse cursor and treats (see `Cursor`).
+    case startled, chaseCursor, fetchTreat
 
     /// Behaviors that happen while standing on something.
     public var isGrounded: Bool {
@@ -25,7 +27,7 @@ public enum Behavior: String, CaseIterable, Codable, Sendable {
     /// Grounded behaviors that move the pet along its surface.
     public var isMoving: Bool {
         switch self {
-        case .walk, .run, .chase, .flee, .follow, .butterfly, .tumble: return true
+        case .walk, .run, .chase, .flee, .follow, .butterfly, .tumble, .chaseCursor, .fetchTreat: return true
         default: return false
         }
     }
@@ -120,6 +122,8 @@ public struct Pet: Sendable {
     var rideOffset: Double = 0
     /// Followers slow down or speed up to keep their place in line.
     var pace: Double = 1
+    /// The treat this pet is going for.
+    public internal(set) var treatID: Int?
     private var climb: (wallX: Double, top: Double, ontoWindow: Bool)?
     private var lastSupport: Platform?
 
@@ -322,6 +326,8 @@ public struct Pet: Sendable {
         case .run, .flee: base = config.runSpeed
         case .chase: base = config.runSpeed * 1.12
         case .follow: base = config.walkSpeed * pace
+        case .chaseCursor: base = config.runSpeed * 1.05 * pace
+        case .fetchTreat: base = config.runSpeed * pace
         case .butterfly: base = config.walkSpeed * 1.8
         case .tumble: base = config.runSpeed * max(0, 1 - timeInBehavior / max(behaviorDuration, 0.1))
         default: return 0
@@ -611,6 +617,9 @@ public struct Pet: Sendable {
         .follow: [(.stand, 50), (.walk, 50)],
         .playFight: [(.stand, 40), (.sit, 30), (.call, 30)],
         .ride: [(.walk, 50), (.call, 25), (.sleep, 25)],
+        .startled: [(.run, 70), (.stand, 30)],
+        .chaseCursor: [(.call, 50), (.sit, 50)],
+        .fetchTreat: [(.stand, 100)],
     ]
 
     /// Extra solo options mixed into the table above (kept separate so the original weights
@@ -652,6 +661,9 @@ public struct Pet: Sendable {
         case .follow: return 6...14
         case .playFight: return 2.5...4.5
         case .ride: return 5...14
+        case .startled: return 0.7...0.7
+        case .chaseCursor: return 3...6
+        case .fetchTreat: return 12...12
         case .hang: return 2...5
         case .fall, .dragged, .parachute, .meteor, .jetpack, .countdown, .finale, .climb: return .infinity ... .infinity
         }
