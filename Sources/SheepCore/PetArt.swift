@@ -94,6 +94,8 @@ public struct Pose: Hashable, Sendable {
     /// Explicit rest posture for folded legs (`auto` = sitting).
     public var posture: Posture = .auto
     public enum Posture: Hashable, Sendable { case auto, sitting, lying }
+    /// Seasonal decoration (hat, pumpkin).
+    public var seasonal: Seasonal = .none
     /// Quarter turns of the whole pet: 1 = head up (climbing), 2 = upside down, 3 = head down.
     public var rotation = 0
 

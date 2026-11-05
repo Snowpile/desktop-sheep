@@ -16,6 +16,9 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
   the dog barks and chews a bone, the bunny hops and nibbles a carrot, the red panda chirps and
   munches bamboo. Pick one for all pets (or **Mixed**) from the menu or Settings; right-click a
   single pet to change just that one.
+- Time of day and seasons: pets sleep more (and longer) at night and are livelier in the
+  morning; in December they wear Santa hats and in October pumpkins keep resting pets company
+  (both can be turned off in Settings).
 - Optional **Sounds** (off by default; menu or Settings): short original sounds synthesized in
   code: bleat, meow, bark, squeak, chirp, thuds, and pops, poofs and booms for the finale.
 - **Launch at Login** menu toggle (uses `SMAppService`; only in the bundled .app, and macOS may

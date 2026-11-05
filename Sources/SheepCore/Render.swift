@@ -208,6 +208,7 @@ extension PetArt {
         r.mouthOpen = pose.mouthOpen
         r.earAngle = pose.earUp ? -0.45 : 0
         r.tailAngle = -Double(pose.tailDY) * 0.35
+        r.seasonal = pose.seasonal
         switch pose.effect {
         case .none: break
         case let .zzz(f): r.extra = .zzz; r.frame = f
