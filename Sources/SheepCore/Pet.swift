@@ -15,11 +15,13 @@ public enum Behavior: String, CaseIterable, Codable, Sendable {
     case nuzzle, chase, flee, follow, playFight, ride
     /// Reacting to the mouse cursor and treats (see `Cursor`).
     case startled, chaseCursor, fetchTreat
+    /// Peeking out from behind a window's side; napping on the menu bar.
+    case peek, menuNap
 
     /// Behaviors that happen while standing on something.
     public var isGrounded: Bool {
         switch self {
-        case .fall, .dragged, .parachute, .meteor, .jetpack, .countdown, .finale, .climb, .hang: return false
+        case .fall, .dragged, .parachute, .meteor, .jetpack, .countdown, .finale, .climb, .hang, .menuNap: return false
         default: return true
         }
     }
@@ -74,6 +76,9 @@ public struct PetConfig: Sendable {
     /// Chance to climb a wall when meeting one, and to hang on when walking off a window.
     public var climbChance: Double = 0.25
     public var hangChance: Double = 0.35
+    public var peekChance: Double = 0.25
+    /// Share of screen-edge climbs that go all the way up for a nap on the menu bar.
+    public var menuNapChance: Double = 0.35
     /// Time of day, nudging behavior weights (`day` = neutral).
     public var dayPart: DayPart = .day
     /// Seasonal decoration drawn on the pet.
@@ -129,6 +134,11 @@ public struct Pet: Sendable {
     /// The treat this pet is going for.
     public internal(set) var treatID: Int?
     private var climb: (wallX: Double, top: Double, ontoWindow: Bool)?
+    /// Where a climb up the screen side ends in a menu bar nap.
+    private var menuNapY: Double?
+    /// While peeking: the window edge the pet hides behind, and which side of it is hidden.
+    public private(set) var peekEdge: Double?
+    public private(set) var peekHidesRight = false
     private var lastSupport: Platform?
 
     public init(x: Double, y: Double, animal: Animal = .sheep, facing: Facing = .right, behavior: Behavior = .fall,
@@ -214,6 +224,11 @@ public struct Pet: Sendable {
             stepClimb(dt: dt, world: world, rng: &rng)
         case .hang:
             stepHang(world: world, rng: &rng)
+        case .menuNap:
+            let stillThere = world.menuBars.contains { x >= $0.minX && x <= $0.maxX && abs($0.minY - 6 - y) < 2 }
+            if !stillThere || timeInBehavior >= behaviorDuration {
+                startFalling(vx: facing.sign * 40, vy: 0) // wake up and hop down
+            }
         default:
             if isLeaving {
                 // Keep walking out; nothing to stand on past the edge, and no stopping.
@@ -248,6 +263,7 @@ public struct Pet: Sendable {
 
     /// Forces a behavior (used by the state machine, tests and the UI).
     public mutating func setBehavior(_ newBehavior: Behavior, duration: Double) {
+        if newBehavior != .peek { peekEdge = nil }
         behavior = newBehavior
         behaviorDuration = duration
         timeInBehavior = 0
@@ -382,6 +398,17 @@ public struct Pet: Sendable {
         let newX = x + dir * movingSpeed * dt
         let canClimb = config.enabledBehaviors.contains(.climb) && ridingID == nil && !isLeaving
             && (behavior == .walk || behavior == .run)
+        // Walking past the side of a window: sometimes duck behind it and peek out.
+        if behavior == .walk, config.enabledBehaviors.contains(.peek), ridingID == nil, !isLeaving,
+           let wallX = windowSideInFront(world: world, from: x, to: newX),
+           Double.random(in: 0..<1, using: &rng) < config.peekChance {
+            peekHidesRight = dir > 0
+            x = wallX + dir * config.halfWidth * 0.7
+            facing = facing.flipped
+            setBehavior(.peek, duration: Double.random(in: Self.durationRange(for: .peek), using: &rng))
+            peekEdge = wallX
+            return
+        }
         // Meeting the side of a window: sometimes climb up it to reach its top.
         if canClimb, let wall = windowSide(world: world, from: x, to: newX),
            Double.random(in: 0..<1, using: &rng) < config.climbChance {
@@ -408,8 +435,17 @@ public struct Pet: Sendable {
             } else if canClimb, Double.random(in: 0..<1, using: &rng) < config.climbChance,
                       let screen = world.screen(containingX: x, y: y + 1) {
                 // Climb a little way up the side of the screen, then drop back down.
-                let top = min(y + screen.height * Double.random(in: 0.25...0.7, using: &rng), screen.maxY - config.height - 40)
-                startClimb(wallX: dir > 0 ? screen.maxX : screen.minX, top: max(top, y + 40), ontoWindow: false)
+                let wallX = dir > 0 ? screen.maxX : screen.minX
+                let menuBar = world.menuBars.first { wallX >= $0.minX - 1 && wallX <= $0.maxX + 1 && abs($0.minY - screen.maxY) < 2 }
+                if menuBar != nil, config.enabledBehaviors.contains(.menuNap), Double.random(in: 0..<1, using: &rng) < config.menuNapChance {
+                    // All the way up, for a nap on the menu bar.
+                    startClimb(wallX: wallX, top: screen.maxY - config.climbReach, ontoWindow: false)
+                    menuNapY = screen.maxY - 6
+                } else {
+                    let top = min(y + screen.height * Double.random(in: 0.25...0.7, using: &rng), screen.maxY - config.height - 40)
+                    startClimb(wallX: wallX, top: max(top, y + 40), ontoWindow: false)
+                    menuNapY = nil
+                }
             } else {
                 facing = facing.flipped
             }
@@ -432,6 +468,16 @@ public struct Pet: Sendable {
             if world.windowTops.contains(where: { abs($0.y - w.maxY) < 1 && $0.spans(landing) }) {
                 return (wallX, w.maxY)
             }
+        }
+        return nil
+    }
+
+    /// The near side of a window that covers the pet's height, crossed while moving.
+    private func windowSideInFront(world: World, from oldX: Double, to newX: Double) -> Double? {
+        let dir = facing.sign
+        for w in world.windows where w.minY <= y + 2 && w.maxY >= y + 50 {
+            let wallX = dir > 0 ? w.minX : w.maxX
+            if dir > 0 ? (oldX <= wallX && newX > wallX) : (oldX >= wallX && newX < wallX) { return wallX }
         }
         return nil
     }
@@ -462,7 +508,15 @@ public struct Pet: Sendable {
         } else if !c.ontoWindow, y >= c.top {
             climb = nil
             facing = facing.flipped
-            startFalling(vx: facing.sign * 60, vy: 0)
+            if let napY = menuNapY {
+                // Step onto the menu bar and curl up.
+                menuNapY = nil
+                x = c.wallX + facing.sign * config.halfWidth * 1.2
+                y = napY
+                setBehavior(.menuNap, duration: Double.random(in: Self.durationRange(for: .menuNap), using: &rng))
+            } else {
+                startFalling(vx: facing.sign * 60, vy: 0)
+            }
         }
     }
 
@@ -627,6 +681,7 @@ public struct Pet: Sendable {
         .startled: [(.run, 70), (.stand, 30)],
         .chaseCursor: [(.call, 50), (.sit, 50)],
         .fetchTreat: [(.stand, 100)],
+        .peek: [(.walk, 100)],
     ]
 
     /// Extra solo options mixed into the table above (kept separate so the original weights
@@ -671,6 +726,8 @@ public struct Pet: Sendable {
         case .startled: return 0.7...0.7
         case .chaseCursor: return 3...6
         case .fetchTreat: return 12...12
+        case .peek: return 3...6
+        case .menuNap: return 8...20
         case .hang: return 2...5
         case .fall, .dragged, .parachute, .meteor, .jetpack, .countdown, .finale, .climb: return .infinity ... .infinity
         }

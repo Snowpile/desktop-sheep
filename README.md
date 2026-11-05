@@ -43,7 +43,8 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
 - Random behavior state machine: walk, run, sit, sleep, eat, call (bleat/meow/bark…, visual only),
   dig, chase butterflies, yawn, trip and tumble.
 - Climbing: pets sometimes climb up the side of a window onto its top, or up a screen edge and
-  drop back down; walking off a window, they may hang from its edge before letting go.
+  drop back down; walking off a window, they may hang from its edge before letting go. Sometimes
+  they climb all the way up for a nap on the menu bar, or duck behind a window's side and peek out.
 - Pets notice each other: they bump and turn or stop to nuzzle, chase and tag, fall into
   follow-the-leader lines, play-fight, stack up on each other's backs (and ride along), and yawns
   spread. Every behavior can be switched off in Settings.

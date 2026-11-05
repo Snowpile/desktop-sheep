@@ -162,6 +162,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         case .ride: return "Stack up on each other"
         case .chaseCursor: return "Chase the mouse cursor"
         case .startled: return "Startle at fast mouse moves"
+        case .peek: return "Peek out from behind windows"
+        case .menuNap: return "Nap on the menu bar"
         default: return behavior.rawValue.capitalized
         }
     }

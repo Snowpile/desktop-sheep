@@ -30,7 +30,7 @@ public struct PetSettings: Codable, Equatable, Sendable {
         .walk, .run, .sit, .sleep, .eat, .call,
         .climb, .hang, .tumble, .dig, .butterfly, .yawn,
         .nuzzle, .chase, .follow, .playFight, .ride,
-        .chaseCursor, .startled,
+        .chaseCursor, .startled, .peek, .menuNap,
     ]
 
     public var petCount = 1

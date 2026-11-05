@@ -45,6 +45,8 @@ public struct World: Sendable {
     public var windowTops: [Platform]
     /// Window frames, front to back (pets can climb their sides).
     public var windows: [Rect]
+    /// Menu bar strips at the top of displays (above the usable area).
+    public var menuBars: [Rect] = []
     /// Temporary surfaces such as other pets' backs.
     public var extraPlatforms: [Platform] = []
 
