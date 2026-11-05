@@ -22,6 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var bringBackItem: NSMenuItem?
     /// How many pets there were before the last finale, so they can be brought back.
     private var petsBeforeFinale = 0
+    private var treats: [Treat] = []
+    private var treatWindows: [Int: TreatWindow] = [:]
+    private var nextTreatID = 1
+    private var lastMouse = CGPoint.zero
+    private var mouseMonitors: [Any] = []
     /// Times (CACurrentMediaTime) when a new pet will show up after one walked off.
     private var pendingArrivals: [Double] = []
     private var currentAnimalChoice: AnimalChoice?
@@ -40,6 +45,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let timer = Timer(timeInterval: 1.0 / 30, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+
+        // Option-click anywhere drops a treat. Global mouse monitors need no special permission.
+        let onClick: (NSEvent) -> Void = { [weak self] event in
+            guard event.modifierFlags.contains(.option) else { return }
+            MainActor.assumeIsolated { self?.dropTreat(at: NSEvent.mouseLocation) }
+        }
+        if let m = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown, handler: onClick) { mouseMonitors.append(m) }
+        if let m = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown, handler: { event in onClick(event); return event }) {
+            mouseMonitors.append(m)
+        }
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(screensChanged),
@@ -94,6 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         finaleItem?.submenu = finaleMenu
         menu.addItem(.separator())
         walkOnWindowsItem = add(menu, "Walk on Windows", #selector(toggleWalkOnWindows), "")
+        add(menu, "Drop a Treat (or ⌥-click anywhere)", #selector(dropTreatAction), "t")
         add(menu, "Settings…", #selector(showSettings), ",")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Desktop Sheep", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -141,6 +157,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         petsBeforeFinale = count
         for controller in flock { controller.sheep.beginFinale(style: style) }
+    }
+
+    @objc private func dropTreatAction() {
+        // Over a random pet, or the middle of the main screen.
+        if let pet = flock.randomElement()?.sheep {
+            dropTreat(at: CGPoint(x: pet.x + Double.random(in: -150...150, using: &rng), y: pet.y + 200))
+        } else if let s = world.screens.first {
+            dropTreat(at: CGPoint(x: s.minX + s.width / 2, y: s.maxY - 100))
+        }
+    }
+
+    private func dropTreat(at point: CGPoint) {
+        guard treats.count < 10 else { return }
+        let treat = Treat(id: nextTreatID, x: point.x, y: point.y)
+        nextTreatID += 1
+        treats.append(treat)
+        let window = TreatWindow(id: treat.id)
+        window.move(to: treat)
+        treatWindows[treat.id] = window
     }
 
     @objc private func bringBackPets() {
@@ -210,6 +245,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             pets[i].step(dt: dt, world: Social.world(world, for: i, in: pets), rng: &rng)
         }
         Social.interact(&pets, dt: dt, rng: &rng)
+        let speed = hypot(mouse.x - lastMouse.x, mouse.y - lastMouse.y) / max(dt, 1.0 / 120)
+        lastMouse = mouse
+        Cursor.react(&pets, cursor: CursorInput(x: mouse.x, y: mouse.y, speed: speed), dt: dt, rng: &rng)
+        Cursor.step(&treats, pets: &pets, world: world, dt: dt, rng: &rng)
+        for (id, window) in treatWindows {
+            if let treat = treats.first(where: { $0.id == id }) { window.move(to: treat) } else {
+                window.close()
+                treatWindows[id] = nil
+            }
+        }
         for (controller, pet) in zip(flock, pets) {
             controller.sheep = pet
             controller.render()

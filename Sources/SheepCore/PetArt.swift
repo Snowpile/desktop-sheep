@@ -106,6 +106,7 @@ public struct Pose: Hashable, Sendable {
         case butterfly(Int)
         case scuffle(Int)
         case grip
+        case alert
     }
 
     public init() {}
@@ -196,6 +197,8 @@ public enum PetArt {
         case .follow: return 8
         case .playFight: return 8
         case .ride: return 2
+        case .startled: return 8
+        case .chaseCursor, .fetchTreat: return 14
         }
     }
 
@@ -205,7 +208,7 @@ public enum PetArt {
         if animal.hops, [.walk, .follow, .butterfly].contains(behavior) {
             return withGear(hopFrames(height: 4), behavior == .butterfly ? { .butterfly($0) } : nil)
         }
-        if animal.hops, [.run, .chase, .flee].contains(behavior) { return hopFrames(height: 8) }
+        if animal.hops, [.run, .chase, .flee, .chaseCursor, .fetchTreat].contains(behavior) { return hopFrames(height: 8) }
         if animal.hops, behavior == .walk { return hopFrames(height: 4) }
         if animal.hops, behavior == .run { return hopFrames(height: 8) }
         switch behavior {
@@ -235,6 +238,10 @@ public enum PetArt {
         case .flee: return runFrames.map { var p = $0; p.eyes = .wide; p.mouthOpen = true; return p }
         case .follow: return walkFrames
         case .playFight: return playFightFrames
+        case .startled: return [0, 4, 6, 4, 2, 0].map { lift in
+            make { $0.lift = lift; $0.eyes = .wide; $0.mouthOpen = true; $0.earUp = true; $0.legs = lift > 0 ? .spread : Pose().legs; $0.gear = .alert }
+        }
+        case .chaseCursor, .fetchTreat: return runFrames.map { var p = $0; p.eyes = .happy; return p }
         case .ride: return sitFrames.map { var p = $0; p.shadow = false; p.eyes = $0.earUp ? .happy : .open; return p }
         }
     }
