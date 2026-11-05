@@ -1,0 +1,26 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test
+        run: swift test
+      - name: Bundle app
+        run: VERSION="${GITHUB_REF_NAME#v}" scripts/bundle.sh
+      - name: Zip
+        run: ditto -c -k --sequesterRsrc --keepParent "dist/Desktop Sheep.app" "dist/Desktop-Sheep-${GITHUB_REF_NAME}.zip"
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "dist/Desktop-Sheep-${GITHUB_REF_NAME}.zip" \
+            --title "Desktop Sheep $GITHUB_REF_NAME" --generate-notes

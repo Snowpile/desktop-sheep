@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT_DIR="${1:-dist}"
 APP="$OUT_DIR/Desktop Sheep.app"
-VERSION="0.1.0"
+VERSION="${VERSION:-0.1.0}"
 
 swift build -c release
 BIN="$(swift build -c release --show-bin-path)/DesktopSheep"

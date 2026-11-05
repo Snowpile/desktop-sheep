@@ -23,6 +23,16 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
 
 macOS 13 or later, Swift 6 toolchain. Xcode is not required; the Command Line Tools are enough.
 
+## Download
+
+Grab `Desktop-Sheep-vX.Y.Z.zip` from the [latest release](https://github.com/Snowpile/desktop-sheep/releases/latest),
+unzip it and move **Desktop Sheep.app** to Applications. The app is ad-hoc signed, not notarized,
+so the first time macOS will refuse to open it: right-click the app, choose **Open**, then **Open**
+again (or run `xattr -dr com.apple.quarantine "/Applications/Desktop Sheep.app"`).
+
+Releases are built by GitHub Actions when a `v*` tag is pushed; every push and pull request is
+built and tested on a macOS runner.
+
 ## Build and run
 
 ```sh
@@ -38,8 +48,7 @@ open "dist/Desktop Sheep.app"
 
 Quit from the menu-bar sheep, or `pkill -f DesktopSheep`.
 
-The app is ad-hoc signed, not notarized. If you copy it to another Mac, Gatekeeper may block it;
-right-click the app and choose **Open**, or build it locally.
+`VERSION=1.2.3 scripts/bundle.sh` sets the app's version (defaults to 0.1.0).
 
 ## Permissions
 
