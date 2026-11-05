@@ -214,7 +214,36 @@ private func run(_ sheep: inout Sheep, in world: World, seconds: Double, seed: U
     }
 
     @Test func walkAnimationChangesOverTime() {
-        let poses = Set((0..<8).map { SheepArt.pose(for: .walk, time: Double($0) / 6) })
-        #expect(poses.count == 4)
+        let fps = SheepArt.framesPerSecond(.walk)
+        let poses = Set((0..<12).map { SheepArt.pose(for: .walk, time: (Double($0) + 0.5) / fps) })
+        #expect(poses.count == SheepArt.frames(for: .walk).count)
+        #expect(poses.count >= 6)
+    }
+
+    @Test func blinksBrieflyAndOutOfSyncByPhase() {
+        let samples = (0..<370).map { Double($0) / 100 }
+        let closed = samples.filter { SheepArt.pose(for: .stand, time: $0).eyes == .closed }.count
+        #expect(closed > 0 && closed < 30)
+        #expect(SheepArt.pose(for: .stand, time: 3.6).eyes == .closed)
+        #expect(SheepArt.pose(for: .stand, time: 3.6, phase: 0.5).eyes == .open)
+        // Sleeping eyes stay closed; falling eyes stay wide.
+        #expect(SheepArt.pose(for: .fall, time: 3.6).eyes == .wide)
+    }
+
+    @Test func shadowIsTranslucentAndOnlyWhenGrounded() {
+        let standing = SheepArt.render(SheepArt.pose(for: .stand, time: 0))
+        #expect(standing.pixels.contains(10))
+        #expect(!SheepArt.isSolid(10))
+        #expect(!SheepArt.render(SheepArt.pose(for: .fall, time: 0)).pixels.contains(10))
+        #expect(!SheepArt.render(SheepArt.pose(for: .dragged, time: 0)).pixels.contains(10))
+    }
+
+    @Test func petSitsAtTheBottomCenterOfTheSprite() {
+        let c = SheepArt.render(Pose())
+        let solidColumns = (0..<c.width).filter { x in (0..<c.height).contains { SheepArt.isSolid(c[x, $0]) } }
+        let mid = Double(solidColumns.first! + solidColumns.last!) / 2
+        #expect(abs(mid - Double(c.width) / 2) <= 4)
+        // Plenty of headroom above the pet for effects.
+        #expect((0..<12).allSatisfy { y in (0..<c.width).allSatisfy { c[$0, y] == 0 } })
     }
 }

@@ -51,6 +51,8 @@ public struct Sheep: Sendable {
     /// Drives sprite animation; runs faster for walking and running at higher speeds.
     public private(set) var animationTime: Double = 0
     public var config: SheepConfig
+    /// 0..<1, desynchronizes animation details (like blinking) between pets.
+    public var phase: Double = 0
 
     public init(x: Double, y: Double, facing: Facing = .right, behavior: Behavior = .fall,
                 duration: Double = 2, config: SheepConfig = SheepConfig()) {
@@ -66,6 +68,7 @@ public struct Sheep: Sendable {
     public static func spawn<R: RandomNumberGenerator>(in world: World, rng: inout R,
                                                        config: SheepConfig = SheepConfig()) -> Sheep {
         var sheep = Sheep(x: 0, y: 0, facing: Bool.random(using: &rng) ? .left : .right, config: config)
+        sheep.phase = Double.random(in: 0..<1, using: &rng)
         sheep.respawn(in: world, rng: &rng)
         return sheep
     }

@@ -1,8 +1,13 @@
 /// An indexed-color pixel image. Index 0 is transparent; see `SheepArt.palette`.
+///
+/// Drawing goes through an origin offset so a pet can be drawn in its own 40x32 "body space"
+/// while effects (parachutes, flames, z's) extend above and around it.
 public struct PixelCanvas: Equatable, Sendable {
     public let width: Int
     public let height: Int
-    public private(set) var pixels: [UInt8]
+    public internal(set) var pixels: [UInt8]
+    var originX = 0
+    var originY = 0
 
     public init(width: Int, height: Int) {
         self.width = width
@@ -10,15 +15,24 @@ public struct PixelCanvas: Equatable, Sendable {
         self.pixels = Array(repeating: 0, count: width * height)
     }
 
-    /// Row 0 is the top of the image.
+    /// Absolute pixel access, row 0 at the top.
+    public func pixel(_ x: Int, _ y: Int) -> UInt8 {
+        (x >= 0 && y >= 0 && x < width && y < height) ? pixels[y * width + x] : 0
+    }
+
+    /// Pixel access relative to the current drawing origin.
     public subscript(x: Int, y: Int) -> UInt8 {
-        get { (x >= 0 && y >= 0 && x < width && y < height) ? pixels[y * width + x] : 0 }
-        set { if x >= 0 && y >= 0 && x < width && y < height { pixels[y * width + x] = newValue } }
+        get { pixel(x + originX, y + originY) }
+        set {
+            let ax = x + originX, ay = y + originY
+            if ax >= 0 && ay >= 0 && ax < width && ay < height { pixels[ay * width + ax] = newValue }
+        }
     }
 
     public var isBlank: Bool { pixels.allSatisfy { $0 == 0 } }
 
     mutating func fill(x: Int, y: Int, width w: Int, height h: Int, _ color: UInt8) {
+        guard w > 0, h > 0 else { return }
         for yy in y..<(y + h) { for xx in x..<(x + w) { self[xx, yy] = color } }
     }
 
@@ -31,12 +45,23 @@ public struct PixelCanvas: Equatable, Sendable {
         }
     }
 
+    /// Filled ellipse with radii `rx`, `ry`.
+    mutating func ellipse(cx: Int, cy: Int, rx: Int, ry: Int, _ color: UInt8) {
+        guard rx > 0, ry > 0 else { return }
+        for yy in (cy - ry)...(cy + ry) {
+            for xx in (cx - rx)...(cx + rx) {
+                let nx = Double(xx - cx) / (Double(rx) + 0.5), ny = Double(yy - cy) / (Double(ry) + 0.5)
+                if nx * nx + ny * ny <= 1 { self[xx, yy] = color }
+            }
+        }
+    }
+
     mutating func plot(_ points: [(Int, Int)], _ color: UInt8) {
         for (x, y) in points { self[x, y] = color }
     }
 }
 
-/// How the sheep looks in one animation frame.
+/// How the pet looks in one animation frame.
 public struct Pose: Hashable, Sendable {
     public enum Legs: Hashable, Sendable {
         /// Per-leg foot offsets (back-far, back-near, front-far, front-near) and which legs are lifted.
@@ -45,7 +70,7 @@ public struct Pose: Hashable, Sendable {
         case spread
         case dangling(wiggle: Int)
     }
-    public enum Eyes: Hashable, Sendable { case open, closed, wide }
+    public enum Eyes: Hashable, Sendable { case open, closed, wide, happy }
     public enum Effect: Hashable, Sendable { case none, zzz(Int), bleat(Int), grass(Int) }
 
     public var legs: Legs = .standing(dx: [0, 0, 0, 0], lifted: [false, false, false, false])
@@ -54,79 +79,123 @@ public struct Pose: Hashable, Sendable {
     public var headDY = 0
     public var eyes: Eyes = .open
     public var mouthOpen = false
+    /// Ear raised (flick) instead of resting.
+    public var earUp = false
+    /// Tail offset in pixels (wag).
+    public var tailDY = 0
+    /// Soft shadow on the ground (only while standing on something).
+    public var shadow = true
     public var effect: Effect = .none
 
     public init() {}
 }
 
-/// Original pixel-art sheep, drawn from simple shapes at runtime. Faces right; mirror for left.
+/// Original pixel-art pets, drawn from simple shapes at runtime. They face right; mirror for left.
 public enum SheepArt {
-    public static let width = 40
-    public static let height = 32
+    /// Full sprite size, including room for effects above the pet.
+    public static let width = 48
+    public static let height = 48
+    /// Where the pet's 40x32 body space sits inside the sprite (its bottom row is the sprite's bottom).
+    public static let bodyOrigin = (x: 4, y: 16)
+    public static let bodyWidth = 40
+    public static let bodyHeight = 32
 
     /// RGBA colors for each palette index.
     public static let palette: [(r: UInt8, g: UInt8, b: UInt8, a: UInt8)] = [
         (0, 0, 0, 0),            // 0 transparent
         (0x2A, 0x24, 0x30, 255), // 1 outline / hooves
-        (0xF7, 0xF4, 0xEC, 255), // 2 wool
-        (0xD9, 0xD2, 0xC3, 255), // 3 wool shadow
+        (0xF4, 0xF0, 0xE6, 255), // 2 wool
+        (0xD6, 0xCE, 0xBE, 255), // 3 wool shadow
         (0x4B, 0x42, 0x50, 255), // 4 face and legs
-        (0xFF, 0xFF, 0xFF, 255), // 5 eye
-        (0xF1, 0x9C, 0xAB, 255), // 6 pink (ear, mouth)
+        (0xFF, 0xFF, 0xFF, 255), // 5 eye shine / wool highlight
+        (0xF1, 0x9C, 0xAB, 255), // 6 pink (ear, mouth, blush)
         (0x6A, 0xBF, 0x4B, 255), // 7 grass
         (0x3F, 0x8A, 0x35, 255), // 8 dark grass
         (0x9C, 0xC4, 0xFF, 255), // 9 dream blue
+        (0x10, 0x10, 0x18, 70),  // 10 ground shadow (translucent)
+        (0x6E, 0x63, 0x73, 255), // 11 face highlight
     ]
+
+    /// Fully opaque palette indices (used for hit testing; the shadow doesn't count).
+    public static func isSolid(_ index: UInt8) -> Bool {
+        Int(index) < palette.count && palette[Int(index)].a == 255
+    }
 
     // MARK: Animation
 
     /// Frames per second for each behavior's animation.
     public static func framesPerSecond(_ behavior: Behavior) -> Double {
         switch behavior {
-        case .walk: return 6
-        case .run: return 12
-        case .sleep: return 1.2
-        case .eat: return 3
-        case .bleat: return 2.5
-        case .dragged: return 5
-        default: return 1
+        case .walk: return 8
+        case .run: return 14
+        case .sleep: return 1.5
+        case .eat: return 4
+        case .bleat: return 4
+        case .dragged: return 6
+        case .stand, .sit: return 2
+        case .fall: return 1
         }
     }
 
     public static func frames(for behavior: Behavior) -> [Pose] {
         switch behavior {
-        case .stand: return [Pose()]
+        case .stand: return standFrames
         case .walk: return walkFrames
         case .run: return runFrames
-        case .sit: return [sitPose(effect: .none, sleeping: false)]
-        case .sleep: return [sitPose(effect: .zzz(0), sleeping: true), sitPose(effect: .zzz(1), sleeping: true)]
-        case .eat: return [eatPose(0), eatPose(1)]
-        case .bleat: return [bleatPose(0), bleatPose(1), bleatPose(2)]
+        case .sit: return sitFrames
+        case .sleep: return sleepFrames
+        case .eat: return eatFrames
+        case .bleat: return bleatFrames
         case .fall: return [fallPose]
-        case .dragged: return [draggedPose(0), draggedPose(1)]
+        case .dragged: return [draggedPose(-1), draggedPose(1)]
         }
     }
 
-    public static func pose(for behavior: Behavior, time: Double) -> Pose {
+    /// The pose to show `time` seconds into a behavior. `phase` (0..<1) desynchronizes
+    /// blinking between pets.
+    public static func pose(for behavior: Behavior, time: Double, phase: Double = 0) -> Pose {
         let all = frames(for: behavior)
-        let index = Int(max(time, 0) * framesPerSecond(behavior)) % all.count
-        return all[index]
+        var pose = all[Int(max(time, 0) * framesPerSecond(behavior)) % all.count]
+        if pose.eyes == .open && isBlinking(time: time, phase: phase) { pose.eyes = .closed }
+        return pose
     }
+
+    /// Blinks for 0.15 s every 3.7 s.
+    public static func isBlinking(time: Double, phase: Double) -> Bool {
+        (max(time, 0) + phase * 3.7).truncatingRemainder(dividingBy: 3.7) > 3.55
+    }
+
+    private static func make(_ change: (inout Pose) -> Void) -> Pose {
+        var p = Pose()
+        change(&p)
+        return p
+    }
+
+    /// Mostly still; an ear flick and tail twitch now and then.
+    private static let standFrames: [Pose] = {
+        var frames = Array(repeating: Pose(), count: 6)
+        frames[3].earUp = true
+        frames[4].tailDY = -1
+        return frames
+    }()
 
     private static let walkFrames: [Pose] = {
         // Diagonal leg pairs swing together: (back-far, front-near) and (back-near, front-far).
         let steps: [([Int], [Bool], Int)] = [
             ([1, -1, -1, 1], [false, false, false, false], 0),
+            ([1, -1, -1, 1], [false, true, true, false], 0),
             ([0, 0, 0, 0], [true, false, false, true], -1),
             ([-1, 1, 1, -1], [false, false, false, false], 0),
+            ([-1, 1, 1, -1], [true, false, false, true], 0),
             ([0, 0, 0, 0], [false, true, true, false], -1),
         ]
-        return steps.map { dx, lifted, bob in
-            var p = Pose()
-            p.legs = .standing(dx: dx, lifted: lifted)
-            p.bodyDY = bob
-            p.headDY = bob
-            return p
+        return steps.enumerated().map { i, step in
+            make {
+                $0.legs = .standing(dx: step.0, lifted: step.1)
+                $0.bodyDY = step.2
+                $0.headDY = step.2 + (i % 3 == 1 ? 1 : 0)
+                $0.tailDY = i % 2 == 0 ? 0 : -1
+            }
         }
     }()
 
@@ -138,71 +207,94 @@ public enum SheepArt {
             ([0, 0, 0, 0], [true, true, false, false], -1),
         ]
         return steps.map { dx, lifted, bob in
-            var p = Pose()
-            p.legs = .standing(dx: dx, lifted: lifted)
-            p.bodyDY = bob
-            p.headDY = bob + 1
-            p.headDX = 1
-            return p
+            make {
+                $0.legs = .standing(dx: dx, lifted: lifted)
+                $0.bodyDY = bob
+                $0.headDY = bob + 1
+                $0.headDX = 1
+                $0.earUp = true
+                $0.tailDY = -1
+            }
         }
     }()
 
-    private static func sitPose(effect: Pose.Effect, sleeping: Bool) -> Pose {
-        var p = Pose()
-        p.legs = .folded
-        p.bodyDY = 4
-        p.headDY = sleeping ? 6 : 3
-        p.headDX = sleeping ? -1 : 0
-        p.eyes = sleeping ? .closed : .open
-        p.effect = effect
-        return p
+    private static let sitFrames: [Pose] = (0..<6).map { i in
+        make {
+            $0.legs = .folded
+            $0.bodyDY = 4
+            $0.headDY = 3
+            $0.earUp = i == 4
+        }
     }
 
-    private static func eatPose(_ frame: Int) -> Pose {
-        var p = Pose()
-        p.headDY = 7
-        p.headDX = 1
-        p.mouthOpen = frame == 1
-        p.effect = .grass(frame)
-        return p
+    /// Slow breathing (body rises and falls) with drifting z's.
+    private static let sleepFrames: [Pose] = (0..<4).map { i in
+        make {
+            $0.legs = .folded
+            $0.bodyDY = i % 2 == 0 ? 4 : 3
+            $0.headDY = 6
+            $0.headDX = -1
+            $0.eyes = .closed
+            $0.effect = .zzz(i)
+        }
     }
 
-    private static func bleatPose(_ frame: Int) -> Pose {
-        var p = Pose()
-        p.headDY = -1
-        p.mouthOpen = frame > 0
-        p.effect = frame > 0 ? .bleat(frame - 1) : .none
-        return p
+    /// Head down, chewing.
+    private static let eatFrames: [Pose] = (0..<4).map { i in
+        make {
+            $0.headDY = i == 3 ? 6 : 7
+            $0.headDX = 1
+            $0.mouthOpen = i == 1
+            $0.effect = .grass(i)
+            $0.tailDY = i == 2 ? -1 : 0
+        }
     }
 
-    private static let fallPose: Pose = {
-        var p = Pose()
-        p.legs = .spread
-        p.eyes = .wide
-        p.mouthOpen = true
-        return p
-    }()
+    private static let bleatFrames: [Pose] = [
+        make { $0.headDY = 0 },
+        make { $0.headDY = -1; $0.earUp = true },
+        make { $0.headDY = -2; $0.mouthOpen = true; $0.eyes = .happy; $0.earUp = true; $0.effect = .bleat(0) },
+        make { $0.headDY = -2; $0.mouthOpen = true; $0.eyes = .happy; $0.earUp = true; $0.effect = .bleat(1) },
+        make { $0.headDY = -2; $0.mouthOpen = true; $0.eyes = .happy; $0.earUp = true; $0.effect = .bleat(2) },
+    ]
 
-    private static func draggedPose(_ frame: Int) -> Pose {
-        var p = Pose()
-        p.legs = .dangling(wiggle: frame == 0 ? -1 : 1)
-        p.eyes = .wide
-        p.bodyDY = -1
-        p.headDY = -1
-        return p
+    private static let fallPose = make {
+        $0.legs = .spread
+        $0.eyes = .wide
+        $0.mouthOpen = true
+        $0.earUp = true
+        $0.shadow = false
     }
 
-    // MARK: Drawing
+    private static func draggedPose(_ wiggle: Int) -> Pose {
+        make {
+            $0.legs = .dangling(wiggle: wiggle)
+            $0.eyes = .wide
+            $0.bodyDY = -1
+            $0.headDY = -1
+            $0.earUp = wiggle > 0
+            $0.tailDY = wiggle > 0 ? -1 : 0
+            $0.shadow = false
+        }
+    }
 
-    private static let ground = 31
+    // MARK: Drawing (body space: 40x32, ground on row 31)
+
+    static let ground = 31
     private static let legX = [8, 11, 21, 24]
 
     public static func render(_ pose: Pose) -> PixelCanvas {
         var c = PixelCanvas(width: width, height: height)
+        c.originX = bodyOrigin.x
+        c.originY = bodyOrigin.y
         let by = pose.bodyDY
         let hx = pose.headDX + 2, hy = pose.headDY // head pokes out in front of the wool
 
+        if pose.shadow { c.fill(x: 4, y: ground, width: 28, height: 1, 10) }
         if pose.legs != .folded { drawLegs(&c, pose.legs, bodyDY: by) }
+
+        // Tail: a small wool puff at the back.
+        c.disc(cx: 4, cy: 19 + by + pose.tailDY, r: 2, 2)
 
         // Wool body: a cloud of overlapping puffs.
         let puffs: [(Int, Int, Int)] = [
@@ -210,8 +302,8 @@ public enum SheepArt {
         ]
         for (x, y, r) in puffs { c.disc(cx: x, cy: y + by, r: r, 2) }
         // Shadowed belly and a few curls.
-        for y in 0..<height {
-            for x in 0..<width where c[x, y] == 2 {
+        for y in 0..<bodyHeight {
+            for x in 0..<bodyWidth where c[x, y] == 2 {
                 if y >= 24 + by || (x * 7 + y * 3) % 13 == 0 { c[x, y] = 3 }
             }
         }
@@ -223,26 +315,20 @@ public enum SheepArt {
         c[30 + hx, 13 + hy] = 2
 
         outlineWool(&c)
+        highlightWool(&c)
         if pose.legs == .folded { drawLegs(&c, pose.legs, bodyDY: by) }
 
-        // Ear (sticks out behind the head), eye and mouth.
-        c.plot([(24 + hx, 17 + hy), (25 + hx, 17 + hy), (23 + hx, 17 + hy)], 4)
-        c.plot([(24 + hx, 18 + hy), (25 + hx, 18 + hy)], 6)
-        switch pose.eyes {
-        case .open:
-            c[29 + hx, 17 + hy] = 5
-        case .wide:
-            c.plot([(29 + hx, 16 + hy), (29 + hx, 17 + hy), (30 + hx, 17 + hy)], 5)
-            c[30 + hx, 16 + hy] = 1
-        case .closed:
-            c.plot([(28 + hx, 18 + hy), (29 + hx, 18 + hy)], 3)
-        }
+        drawEar(&c, up: pose.earUp, hx: hx, hy: hy)
+        drawEyes(&c, pose.eyes, hx: hx, hy: hy)
+        c[28 + hx, 20 + hy] = 6 // blush
         c[31 + hx, 19 + hy] = 1 // nostril
         if pose.mouthOpen {
             c.plot([(29 + hx, 21 + hy), (30 + hx, 21 + hy), (30 + hx, 22 + hy)], 6)
         }
 
         drawEffect(&c, pose.effect, headDX: hx, headDY: hy)
+        c.originX = 0
+        c.originY = 0
         return c
     }
 
@@ -253,6 +339,33 @@ public enum SheepArt {
         ]
         for (row, from, to) in rows {
             for x in from...to { c[x + dx, row + dy] = 4 }
+        }
+        // A lighter muzzle gives the face some shape.
+        c.plot([(31 + dx, 20 + dy), (32 + dx, 20 + dy), (31 + dx, 21 + dy)], 11)
+    }
+
+    private static func drawEar(_ c: inout PixelCanvas, up: Bool, hx: Int, hy: Int) {
+        if up {
+            c.plot([(24 + hx, 15 + hy), (25 + hx, 15 + hy), (23 + hx, 14 + hy), (25 + hx, 16 + hy)], 4)
+            c.plot([(24 + hx, 16 + hy)], 6)
+        } else {
+            c.plot([(24 + hx, 17 + hy), (25 + hx, 17 + hy), (23 + hx, 17 + hy), (22 + hx, 18 + hy)], 4)
+            c.plot([(24 + hx, 18 + hy), (25 + hx, 18 + hy)], 6)
+        }
+    }
+
+    private static func drawEyes(_ c: inout PixelCanvas, _ eyes: Pose.Eyes, hx: Int, hy: Int) {
+        switch eyes {
+        case .open:
+            c.plot([(29 + hx, 16 + hy), (29 + hx, 17 + hy)], 5)
+            c[30 + hx, 17 + hy] = 1
+        case .wide:
+            c.plot([(29 + hx, 16 + hy), (29 + hx, 17 + hy), (30 + hx, 16 + hy), (30 + hx, 17 + hy)], 5)
+            c[30 + hx, 17 + hy] = 1
+        case .closed:
+            c.plot([(28 + hx, 17 + hy), (29 + hx, 17 + hy), (30 + hx, 17 + hy)], 11)
+        case .happy:
+            c.plot([(28 + hx, 17 + hy), (29 + hx, 16 + hy), (30 + hx, 17 + hy)], 11)
         }
     }
 
@@ -287,7 +400,7 @@ public enum SheepArt {
             for i in 0..<4 {
                 let color: UInt8 = i % 2 == 0 ? 1 : 4
                 let w = i % 2 == 0 ? wiggle : -wiggle
-                for y in top...(ground) {
+                for y in top...ground {
                     c.fill(x: legX[i] + (y > top + 3 ? w : 0), y: y, width: 2, height: 1, color)
                 }
                 c.fill(x: legX[i] + w, y: ground, width: 2, height: 1, 1)
@@ -295,13 +408,23 @@ public enum SheepArt {
         }
     }
 
-    /// Draws a dark outline around wool wherever it meets transparency.
+    /// Draws a dark outline around wool wherever it meets transparency or shadow.
     private static func outlineWool(_ c: inout PixelCanvas) {
         let source = c
-        for y in 0..<c.height {
-            for x in 0..<c.width where source[x, y] == 0 {
-                let neighbors = [source[x - 1, y], source[x + 1, y], source[x, y - 1], source[x, y + 1]]
-                if neighbors.contains(where: { $0 == 2 || $0 == 3 }) { c[x, y] = 1 }
+        for y in 0..<height {
+            for x in 0..<width where source.pixel(x, y) == 0 || source.pixel(x, y) == 10 {
+                let neighbors = [source.pixel(x - 1, y), source.pixel(x + 1, y), source.pixel(x, y - 1), source.pixel(x, y + 1)]
+                if neighbors.contains(where: { $0 == 2 || $0 == 3 }) { c.pixels[y * width + x] = 1 }
+            }
+        }
+    }
+
+    /// Bright pixels just under the outline along the top of each wool bump, as if lit from above.
+    private static func highlightWool(_ c: inout PixelCanvas) {
+        let source = c
+        for y in 1..<height {
+            for x in 0..<width where source.pixel(x, y) == 2 && source.pixel(x, y - 1) == 1 && x % 3 != 0 {
+                c.pixels[y * width + x] = 5
             }
         }
     }
@@ -319,11 +442,12 @@ public enum SheepArt {
         case .none:
             break
         case let .zzz(frame):
-            // A small z, and a bigger one drifting up on alternate frames.
-            let small = zShape(4), big = zShape(5)
-            let (sx, sy) = frame == 0 ? (31, 10) : (32, 8)
-            c.plot(small.map { ($0.0 + sx, $0.1 + sy) }, 9)
-            if frame == 1 { c.plot(big.map { ($0.0 + 35, $0.1 + 1) }, 9) }
+            // Up to three z's, rising and growing; they bob one pixel each frame.
+            let spots = [(33, 9, 3), (36, 3, 4), (38, -4, 5)]
+            for (i, spot) in spots.enumerated() where i <= frame % 4 {
+                let rise = frame % 2
+                c.plot(zShape(spot.2).map { ($0.0 + spot.0, $0.1 + spot.1 - rise) }, 9)
+            }
         case let .bleat(frame):
             let mouthY = 21 + hy, mx = 33 + hx
             c.plot([(mx, mouthY - 2), (mx + 1, mouthY - 1), (mx + 1, mouthY), (mx, mouthY + 1)], 1)
@@ -331,12 +455,17 @@ public enum SheepArt {
                 c.plot([(mx + 2, mouthY - 4), (mx + 3, mouthY - 3), (mx + 4, mouthY - 2), (mx + 4, mouthY - 1),
                         (mx + 4, mouthY), (mx + 3, mouthY + 1), (mx + 2, mouthY + 2)], 1)
             }
+            if frame >= 2 {
+                c.plot([(mx + 5, mouthY - 6), (mx + 6, mouthY - 5), (mx + 7, mouthY - 3), (mx + 7, mouthY - 2),
+                        (mx + 7, mouthY - 1), (mx + 7, mouthY), (mx + 6, mouthY + 2), (mx + 5, mouthY + 3)], 1)
+            }
         case let .grass(frame):
             // Tufts in front of the mouth; one blade gets shorter as it's nibbled.
-            let base = ground
-            let blades: [(Int, Int, UInt8)] = [(31, 3, 8), (32, 5, 7), (33, 4, 8), (34, frame == 0 ? 6 : 3, 7), (35, 3, 8), (37, 2, 7)]
+            let blades: [(Int, Int, UInt8)] = [
+                (31, 3, 8), (32, 5, 7), (33, 4, 8), (34, frame % 2 == 0 ? 6 : 4, 7), (35, 3, 8), (37, 2, 7), (38, 3, 8),
+            ]
             for (x, h, color) in blades {
-                for y in (base - h + 1)...base { c[x + hx - 1, y] = color }
+                for y in (ground - h + 1)...ground { c[x + hx - 1, y] = color }
             }
         }
     }

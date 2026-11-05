@@ -35,7 +35,7 @@ final class SheepController {
         window.orderFrontRegardless()
     }
 
-    var pose: Pose { SheepArt.pose(for: sheep.behavior, time: sheep.animationTime) }
+    var pose: Pose { SheepArt.pose(for: sheep.behavior, time: sheep.animationTime, phase: sheep.phase) }
 
     func render() {
         let size = Sprites.shared.size
