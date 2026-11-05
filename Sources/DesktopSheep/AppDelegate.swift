@@ -6,7 +6,7 @@ import SheepCore
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store = SettingsStore()
     private lazy var settingsWindow = SettingsWindowController(store: store)
-    private var flock: [SheepController] = []
+    private var flock: [PetController] = []
     private var statusItem: NSStatusItem?
     private var timer: Timer?
     private var lastTick = CACurrentMediaTime()
@@ -16,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var removeItem: NSMenuItem?
     private var addItem: NSMenuItem?
     private var walkOnWindowsItem: NSMenuItem?
+    private var animalItems: [NSMenuItem] = []
+    private var currentAnimalChoice: AnimalChoice?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let count = Self.countArgument() {
@@ -25,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         setUpMenu()
         rescan()
         syncFlock()
+        currentAnimalChoice = store.settings.animal
         store.observe { [weak self] _ in self?.settingsChanged() }
 
         let timer = Timer(timeInterval: 1.0 / 30, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
@@ -53,8 +56,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
-        addItem = add(menu, "Add Sheep", #selector(addSheepAction), "n")
-        removeItem = add(menu, "Remove Sheep", #selector(removeSheepAction), "d")
+        addItem = add(menu, "Add Pet", #selector(addPetAction), "n")
+        removeItem = add(menu, "Remove Pet", #selector(removePetAction), "d")
+        let animalMenu = NSMenu()
+        for (i, choice) in AnimalChoice.all.enumerated() {
+            let item = animalMenu.addItem(withTitle: choice.title, action: #selector(chooseAnimal(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = i
+            animalItems.append(item)
+        }
+        menu.addItem(withTitle: "Animal (All Pets)", action: nil, keyEquivalent: "").submenu = animalMenu
         menu.addItem(.separator())
         walkOnWindowsItem = add(menu, "Walk on Windows", #selector(toggleWalkOnWindows), "")
         add(menu, "Settings…", #selector(showSettings), ",")
@@ -75,19 +86,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         removeItem?.isEnabled = !flock.isEmpty
         addItem?.isEnabled = flock.count < PetSettings.maxPets
         walkOnWindowsItem?.state = store.settings.walkOnWindows ? .on : .off
+        for item in animalItems { item.state = AnimalChoice.all[item.tag] == store.settings.animal ? .on : .off }
     }
 
-    @objc private func addSheepAction() { store.update { $0.petCount += 1 } }
-    @objc private func removeSheepAction() { store.update { $0.petCount -= 1 } }
+    @objc private func addPetAction() { store.update { $0.petCount += 1 } }
+    @objc private func removePetAction() { store.update { $0.petCount -= 1 } }
     @objc private func toggleWalkOnWindows() { store.update { $0.walkOnWindows.toggle() } }
     @objc private func showSettings() { settingsWindow.show() }
+    @objc private func chooseAnimal(_ sender: NSMenuItem) { store.update { $0.animal = AnimalChoice.all[sender.tag] } }
 
     // MARK: Flock
 
     private func settingsChanged() {
         rescan()
         syncFlock()
-        var config = SheepConfig()
+        // Choosing an animal for all pets converts the existing ones too.
+        if store.settings.animal != currentAnimalChoice {
+            currentAnimalChoice = store.settings.animal
+            for controller in flock {
+                controller.sheep.animal = store.settings.animal.pick(using: &rng)
+                controller.render()
+            }
+        }
+        var config = PetConfig()
         store.settings.apply(to: &config)
         for controller in flock { controller.sheep.apply(config) }
     }
@@ -97,9 +118,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard !world.screens.isEmpty else { return }
         while flock.count > store.settings.petCount { flock.removeLast().close() }
         while flock.count < store.settings.petCount {
-            var config = SheepConfig()
+            var config = PetConfig()
             store.settings.apply(to: &config)
-            flock.append(SheepController(sheep: Sheep.spawn(in: world, rng: &rng, config: config)))
+            let animal = store.settings.animal.pick(using: &rng)
+            flock.append(PetController(sheep: Pet.spawn(in: world, rng: &rng, animal: animal, config: config)))
         }
     }
 

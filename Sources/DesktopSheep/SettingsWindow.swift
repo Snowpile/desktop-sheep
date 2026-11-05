@@ -7,6 +7,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let store: SettingsStore
     private var window: NSWindow?
 
+    private let animalPopup = NSPopUpButton()
     private let countLabel = NSTextField(labelWithString: "")
     private let countStepper = NSStepper()
     private let entryPopup = NSPopUpButton()
@@ -40,6 +41,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         countStepper.target = self
         countStepper.action = #selector(countChanged)
 
+        for choice in AnimalChoice.all { animalPopup.addItem(withTitle: choice.title) }
+        animalPopup.target = self
+        animalPopup.action = #selector(animalChanged)
+
         for style in EntryStyle.allCases { entryPopup.addItem(withTitle: style.title) }
         entryPopup.target = self
         entryPopup.action = #selector(entryChanged)
@@ -65,6 +70,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         }
 
         let grid = NSGridView(views: [
+            [label("Animal:"), animalPopup],
             [label("Number of pets:"), row(countStepper, countLabel)],
             [label("Entry style:"), entryPopup],
             [label("Windows:"), windowsCheck],
@@ -75,7 +81,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         grid.columnSpacing = 8
         grid.column(at: 0).xPlacement = .trailing
         grid.rowAlignment = .firstBaseline
-        grid.row(at: 4).yPlacement = .top
+        grid.row(at: grid.numberOfRows - 1).yPlacement = .top
         grid.translatesAutoresizingMaskIntoConstraints = false
 
         let content = NSView()
@@ -97,8 +103,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         case .run: return "Run"
         case .sit: return "Sit"
         case .sleep: return "Sleep"
-        case .eat: return "Eat grass"
-        case .bleat: return "Bleat"
+        case .eat: return "Eat (grass, fish, bones…)"
+        case .call: return "Call (bleat, meow, bark…)"
         default: return behavior.rawValue.capitalized
         }
     }
@@ -114,6 +120,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     private func refresh() {
         let s = store.settings
+        animalPopup.selectItem(at: AnimalChoice.all.firstIndex(of: s.animal) ?? 0)
         countStepper.integerValue = s.petCount
         countLabel.stringValue = "\(s.petCount)"
         entryPopup.selectItem(at: EntryStyle.allCases.firstIndex(of: s.entryStyle) ?? 0)
@@ -123,6 +130,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         for (behavior, check) in behaviorChecks { check.state = s.isEnabled(behavior) ? .on : .off }
     }
 
+    @objc private func animalChanged() {
+        let i = animalPopup.indexOfSelectedItem
+        guard AnimalChoice.all.indices.contains(i) else { return }
+        store.update { $0.animal = AnimalChoice.all[i] }
+    }
     @objc private func countChanged() { store.update { $0.petCount = countStepper.integerValue } }
     @objc private func entryChanged() {
         let i = entryPopup.indexOfSelectedItem

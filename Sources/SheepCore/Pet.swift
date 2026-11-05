@@ -1,6 +1,6 @@
 /// What the sheep is currently doing.
 public enum Behavior: String, CaseIterable, Codable, Sendable {
-    case stand, walk, run, sit, sleep, eat, bleat, fall, dragged
+    case stand, walk, run, sit, sleep, eat, call, fall, dragged
 
     /// Behaviors that happen while standing on something.
     public var isGrounded: Bool { self != .fall && self != .dragged }
@@ -14,7 +14,7 @@ public enum Facing: Sendable {
 }
 
 /// Tunable constants. Units are points and seconds.
-public struct SheepConfig: Sendable {
+public struct PetConfig: Sendable {
     public var gravity: Double = 1800
     public var maxFallSpeed: Double = 1600
     public var walkSpeed: Double = 32
@@ -39,7 +39,7 @@ public struct SheepConfig: Sendable {
 ///
 /// Position (`x`, `y`) is the bottom-center of the sprite (between the hooves) in global
 /// AppKit screen coordinates. Rendering lives elsewhere; this type is pure and testable.
-public struct Sheep: Sendable {
+public struct Pet: Sendable {
     public var x: Double
     public var y: Double
     public var vx: Double = 0
@@ -50,12 +50,14 @@ public struct Sheep: Sendable {
     public private(set) var behaviorDuration: Double
     /// Drives sprite animation; runs faster for walking and running at higher speeds.
     public private(set) var animationTime: Double = 0
-    public var config: SheepConfig
+    public var config: PetConfig
+    public var animal: Animal
     /// 0..<1, desynchronizes animation details (like blinking) between pets.
     public var phase: Double = 0
 
-    public init(x: Double, y: Double, facing: Facing = .right, behavior: Behavior = .fall,
-                duration: Double = 2, config: SheepConfig = SheepConfig()) {
+    public init(x: Double, y: Double, animal: Animal = .sheep, facing: Facing = .right, behavior: Behavior = .fall,
+                duration: Double = 2, config: PetConfig = PetConfig()) {
+        self.animal = animal
         self.x = x
         self.y = y
         self.facing = facing
@@ -65,9 +67,9 @@ public struct Sheep: Sendable {
     }
 
     /// A sheep dropped from the top of a random screen.
-    public static func spawn<R: RandomNumberGenerator>(in world: World, rng: inout R,
-                                                       config: SheepConfig = SheepConfig()) -> Sheep {
-        var sheep = Sheep(x: 0, y: 0, facing: Bool.random(using: &rng) ? .left : .right, config: config)
+    public static func spawn<R: RandomNumberGenerator>(in world: World, rng: inout R, animal: Animal = .sheep,
+                                                       config: PetConfig = PetConfig()) -> Pet {
+        var sheep = Pet(x: 0, y: 0, animal: animal, facing: Bool.random(using: &rng) ? .left : .right, config: config)
         sheep.phase = Double.random(in: 0..<1, using: &rng)
         sheep.respawn(in: world, rng: &rng)
         return sheep
@@ -109,7 +111,7 @@ public struct Sheep: Sendable {
     }
 
     /// Updates tunables; stops the current behavior if it was just disabled.
-    public mutating func apply(_ newConfig: SheepConfig) {
+    public mutating func apply(_ newConfig: PetConfig) {
         config = newConfig
         if behavior.isGrounded, behavior != .stand, !config.enabledBehaviors.contains(behavior) {
             setBehavior(.stand, duration: 1)
@@ -146,11 +148,26 @@ public struct Sheep: Sendable {
     // MARK: - Internals
 
     private var movingSpeed: Double {
+        let base: Double
         switch behavior {
-        case .walk: return config.walkSpeed * config.speedMultiplier
-        case .run: return config.runSpeed * config.speedMultiplier
+        case .walk: base = config.walkSpeed
+        case .run: base = config.runSpeed
         default: return 0
         }
+        return base * config.speedMultiplier * gaitFactor
+    }
+
+    /// Hopping animals only move while airborne; the factor keeps the average speed the same.
+    private var gaitFactor: Double {
+        guard animal.hops else { return 1 }
+        let frames = PetArt.frames(for: behavior, animal: animal)
+        let airborne = Double(frames.filter { $0.lift > 0 }.count) / Double(frames.count)
+        return pose.lift > 0 ? 1 / max(airborne, 0.1) : 0
+    }
+
+    /// The current animation frame.
+    public var pose: Pose {
+        PetArt.pose(for: behavior, animal: animal, time: animationTime, phase: phase)
     }
 
     private func nearestSupport(world: World) -> Platform? {
@@ -213,7 +230,7 @@ public struct Sheep: Sendable {
                 vx = 0
                 vy = 0
                 if impact > config.startleSpeed {
-                    setBehavior(.bleat, duration: 1.2)
+                    setBehavior(.call, duration: 1.2)
                 } else {
                     setBehavior(.stand, duration: Double.random(in: 0.4...1.2, using: &rng))
                 }
@@ -254,13 +271,13 @@ public struct Sheep: Sendable {
 
     /// Weighted next behaviors for each grounded behavior.
     static let transitions: [Behavior: [(Behavior, Double)]] = [
-        .stand: [(.walk, 40), (.run, 8), (.sit, 12), (.eat, 16), (.bleat, 9), (.stand, 5)],
-        .walk: [(.stand, 25), (.walk, 15), (.run, 10), (.eat, 20), (.sit, 15), (.bleat, 8)],
-        .run: [(.walk, 50), (.stand, 40), (.bleat, 10)],
-        .sit: [(.sleep, 35), (.stand, 30), (.walk, 20), (.bleat, 15)],
+        .stand: [(.walk, 40), (.run, 8), (.sit, 12), (.eat, 16), (.call, 9), (.stand, 5)],
+        .walk: [(.stand, 25), (.walk, 15), (.run, 10), (.eat, 20), (.sit, 15), (.call, 8)],
+        .run: [(.walk, 50), (.stand, 40), (.call, 10)],
+        .sit: [(.sleep, 35), (.stand, 30), (.walk, 20), (.call, 15)],
         .sleep: [(.sit, 50), (.stand, 50)],
-        .eat: [(.stand, 35), (.walk, 40), (.eat, 15), (.bleat, 10)],
-        .bleat: [(.stand, 45), (.walk, 45), (.run, 10)],
+        .eat: [(.stand, 35), (.walk, 40), (.eat, 15), (.call, 10)],
+        .call: [(.stand, 45), (.walk, 45), (.run, 10)],
     ]
 
     /// Allowed successors of a grounded behavior.
@@ -277,7 +294,7 @@ public struct Sheep: Sendable {
         case .sit: return 3...8
         case .sleep: return 6...16
         case .eat: return 3...6
-        case .bleat: return 1.2...1.2
+        case .call: return 1.2...1.2
         case .fall, .dragged: return .infinity ... .infinity
         }
     }
