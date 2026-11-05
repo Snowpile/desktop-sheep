@@ -11,7 +11,9 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
 
 - Transparent, borderless, always-on-top sheep; clicks pass through everywhere except the sheep.
 - Visible on all Spaces, no Dock icon. A menu-bar sheep offers **Add Sheep**, **Remove Sheep**,
-  **Walk on Windows** and **Quit**.
+  **Walk on Windows**, **Settings…** and **Quit**.
+- Settings window: number of pets, entry style, walk on windows, speed, and which idle behaviors
+  are allowed. Choices are saved in UserDefaults (`com.snowpile.desktop-sheep`) and restored on launch.
 - Gravity, landing, throwing, turning around at screen edges.
 - Multi-monitor aware: sheep cross between displays that line up, and turn back otherwise.
 - Random behavior state machine: walk, run, sit, sleep, eat grass, bleat (visual only).
@@ -26,7 +28,7 @@ macOS 13 or later, Swift 6 toolchain. Xcode is not required; the Command Line To
 ```sh
 swift build
 swift run DesktopSheep              # one sheep
-swift run DesktopSheep --count 3    # a small flock
+swift run DesktopSheep --count 3    # a small flock (session only; nothing is saved)
 
 swift test                          # physics, state machine, window-edge and sprite tests
 

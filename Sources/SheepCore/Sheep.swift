@@ -1,5 +1,5 @@
 /// What the sheep is currently doing.
-public enum Behavior: String, CaseIterable, Sendable {
+public enum Behavior: String, CaseIterable, Codable, Sendable {
     case stand, walk, run, sit, sleep, eat, bleat, fall, dragged
 
     /// Behaviors that happen while standing on something.
@@ -27,6 +27,10 @@ public struct SheepConfig: Sendable {
     public var snapDistance: Double = 6
     /// Impacts faster than this make the sheep bleat in surprise when it lands.
     public var startleSpeed: Double = 900
+    /// Multiplies walk and run speed (user setting).
+    public var speedMultiplier: Double = 1
+    /// Behaviors the state machine may pick. `stand` is always allowed.
+    public var enabledBehaviors: Set<Behavior> = Set(Behavior.allCases)
 
     public init() {}
 }
@@ -44,8 +48,8 @@ public struct Sheep: Sendable {
     public private(set) var behavior: Behavior
     public private(set) var timeInBehavior: Double = 0
     public private(set) var behaviorDuration: Double
-    /// Seconds since the current behavior started; drives sprite animation.
-    public var animationTime: Double { timeInBehavior }
+    /// Drives sprite animation; runs faster for walking and running at higher speeds.
+    public private(set) var animationTime: Double = 0
     public var config: SheepConfig
 
     public init(x: Double, y: Double, facing: Facing = .right, behavior: Behavior = .fall,
@@ -71,6 +75,7 @@ public struct Sheep: Sendable {
     public mutating func step<R: RandomNumberGenerator>(dt: Double, world: World, rng: inout R) {
         guard dt > 0, !world.screens.isEmpty else { return }
         timeInBehavior += dt
+        animationTime += (behavior == .walk || behavior == .run) ? dt * config.speedMultiplier : dt
 
         switch behavior {
         case .dragged:
@@ -97,6 +102,15 @@ public struct Sheep: Sendable {
         behavior = newBehavior
         behaviorDuration = duration
         timeInBehavior = 0
+        animationTime = 0
+    }
+
+    /// Updates tunables; stops the current behavior if it was just disabled.
+    public mutating func apply(_ newConfig: SheepConfig) {
+        config = newConfig
+        if behavior.isGrounded, behavior != .stand, !config.enabledBehaviors.contains(behavior) {
+            setBehavior(.stand, duration: 1)
+        }
     }
 
     // MARK: - Dragging
@@ -130,8 +144,8 @@ public struct Sheep: Sendable {
 
     private var movingSpeed: Double {
         switch behavior {
-        case .walk: return config.walkSpeed
-        case .run: return config.runSpeed
+        case .walk: return config.walkSpeed * config.speedMultiplier
+        case .run: return config.runSpeed * config.speedMultiplier
         default: return 0
         }
     }
@@ -266,7 +280,10 @@ public struct Sheep: Sendable {
     }
 
     mutating func chooseNextBehavior<R: RandomNumberGenerator>(rng: inout R) {
-        let options = Self.transitions[behavior] ?? [(.stand, 1)]
+        var options = (Self.transitions[behavior] ?? []).filter {
+            $0.0 == .stand || config.enabledBehaviors.contains($0.0)
+        }
+        if options.isEmpty { options = [(.stand, 1)] }
         let total = options.reduce(0) { $0 + $1.1 }
         var pick = Double.random(in: 0..<total, using: &rng)
         var next = options[0].0
