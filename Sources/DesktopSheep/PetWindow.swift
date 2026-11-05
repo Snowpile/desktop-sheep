@@ -39,7 +39,8 @@ final class PetController {
 
     func render() {
         let size = Sprites.shared.size
-        window.setFrameOrigin(CGPoint(x: (sheep.x - size.width / 2).rounded(), y: sheep.y.rounded()))
+        let origin = sheep.spriteOrigin(width: size.width, height: size.height)
+        window.setFrameOrigin(CGPoint(x: origin.x.rounded(), y: origin.y.rounded()))
         view.layer?.contents = Sprites.shared.image(for: pose, animal: sheep.animal, facing: sheep.facing)
     }
 

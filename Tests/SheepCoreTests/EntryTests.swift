@@ -19,8 +19,10 @@ import Testing
     @Test(arguments: [EntryStyle.drop, .parachute, .meteor, .jetpack, .random])
     func everyStyleLandsOnScreen(_ style: EntryStyle) {
         for seed in UInt64(1)...20 {
-            let (pet, _) = arrive(style, seed: seed)
-            #expect(pet.behavior.isGrounded, "\(style) seed \(seed)")
+            let (pet, seen) = arrive(style, seed: seed)
+            // Landed (it may be off climbing by now), and still on the screen.
+            #expect(seen.contains { $0.isGrounded }, "\(style) seed \(seed)")
+            #expect(!seen.last!.isEntry, "\(style) seed \(seed)")
             #expect(screen.contains(x: pet.x, y: pet.y), "\(style) seed \(seed)")
         }
     }

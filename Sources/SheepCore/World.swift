@@ -43,15 +43,20 @@ public struct World: Sendable {
     public var screens: [Rect]
     /// Window top edges (screen floors are derived from `screens`).
     public var windowTops: [Platform]
+    /// Window frames, front to back (pets can climb their sides).
+    public var windows: [Rect]
+    /// Temporary surfaces such as other pets' backs.
+    public var extraPlatforms: [Platform] = []
 
-    public init(screens: [Rect], windowTops: [Platform] = []) {
+    public init(screens: [Rect], windowTops: [Platform] = [], windows: [Rect] = []) {
         self.screens = screens
         self.windowTops = windowTops
+        self.windows = windows
     }
 
     /// Screen floors plus window tops.
     public var platforms: [Platform] {
-        screens.map { Platform(y: $0.minY, minX: $0.minX, maxX: $0.maxX, isFloor: true) } + windowTops
+        screens.map { Platform(y: $0.minY, minX: $0.minX, maxX: $0.maxX, isFloor: true) } + windowTops + extraPlatforms
     }
 
     /// The screen containing the point, if any.

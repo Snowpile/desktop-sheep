@@ -14,9 +14,11 @@ enum DesktopScanner {
             return Rect(x: f.minX, y: f.minY, width: f.width, height: f.height)
         }
         guard includeWindows else { return World(screens: screens) }
+        let frames = windowFrames()
         return World(
             screens: screens,
-            windowTops: World.windowTops(frontToBack: windowFrames(), screens: screens, headroom: headroom)
+            windowTops: World.windowTops(frontToBack: frames, screens: screens, headroom: headroom),
+            windows: frames
         )
     }
 

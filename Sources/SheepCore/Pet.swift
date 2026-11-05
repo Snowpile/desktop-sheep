@@ -7,12 +7,34 @@ public enum Behavior: String, CaseIterable, Codable, Sendable {
     case parachute, meteor, jetpack, impact
     /// The grand finale: a short countdown, then the pet leaves for good.
     case countdown, finale
+    /// Getting around: climbing walls, hanging from window edges, tripping while running.
+    case climb, hang, tumble
+    /// Solo pastimes.
+    case dig, butterfly, yawn
+    /// With other pets (started by `Social`). `ride` is sitting on another pet's back.
+    case nuzzle, chase, flee, follow, playFight, ride
 
     /// Behaviors that happen while standing on something.
     public var isGrounded: Bool {
         switch self {
-        case .fall, .dragged, .parachute, .meteor, .jetpack, .countdown, .finale: return false
+        case .fall, .dragged, .parachute, .meteor, .jetpack, .countdown, .finale, .climb, .hang: return false
         default: return true
+        }
+    }
+
+    /// Grounded behaviors that move the pet along its surface.
+    public var isMoving: Bool {
+        switch self {
+        case .walk, .run, .chase, .flee, .follow, .butterfly, .tumble: return true
+        default: return false
+        }
+    }
+
+    /// Behaviors that need another pet.
+    public var isSocial: Bool {
+        switch self {
+        case .nuzzle, .chase, .flee, .follow, .playFight, .ride: return true
+        default: return false
         }
     }
 
@@ -44,6 +66,12 @@ public struct PetConfig: Sendable {
     public var parachuteSpeed: Double = 70
     public var meteorSpeed: Double = 650
     public var jetpackSpeed: Double = 170
+    public var climbSpeed: Double = 28
+    /// How far above its lowest point a climbing pet reaches (to pull itself onto a window).
+    public var climbReach: Double = 60
+    /// Chance to climb a wall when meeting one, and to hang on when walking off a window.
+    public var climbChance: Double = 0.25
+    public var hangChance: Double = 0.35
     /// Walk off outer screen edges and leave instead of turning around.
     public var walkOffScreen = false
     /// Multiplies walk and run speed (user setting).
@@ -83,6 +111,17 @@ public struct Pet: Sendable {
     public enum Exit: Sendable { case finale, walkedOff }
     /// Where a jetpack arrival is heading.
     private var targetX: Double = 0
+    /// Identifies the pet to others (`Social`); assigned randomly at spawn.
+    public var id: UInt64 = 0
+    /// The pet being chased, fled from, followed or played with.
+    public internal(set) var partnerID: UInt64?
+    /// Set while sitting on another pet's back.
+    public internal(set) var ridingID: UInt64?
+    var rideOffset: Double = 0
+    /// Followers slow down or speed up to keep their place in line.
+    var pace: Double = 1
+    private var climb: (wallX: Double, top: Double, ontoWindow: Bool)?
+    private var lastSupport: Platform?
 
     public init(x: Double, y: Double, animal: Animal = .sheep, facing: Facing = .right, behavior: Behavior = .fall,
                 duration: Double = 2, config: PetConfig = PetConfig()) {
@@ -101,6 +140,7 @@ public struct Pet: Sendable {
                                                        config: PetConfig = PetConfig()) -> Pet {
         var pet = Pet(x: 0, y: 0, animal: animal, facing: Bool.random(using: &rng) ? .left : .right, config: config)
         pet.phase = Double.random(in: 0..<1, using: &rng)
+        pet.id = rng.next()
         pet.enter(in: world, style: entry, rng: &rng)
         return pet
     }
@@ -147,7 +187,7 @@ public struct Pet: Sendable {
     public mutating func step<R: RandomNumberGenerator>(dt: Double, world: World, rng: inout R) {
         guard dt > 0, !world.screens.isEmpty else { return }
         timeInBehavior += dt
-        animationTime += (behavior == .walk || behavior == .run) ? dt * config.speedMultiplier : dt
+        animationTime += behavior.isMoving || behavior == .climb ? dt * config.speedMultiplier : dt
 
         switch behavior {
         case .dragged:
@@ -162,19 +202,35 @@ public struct Pet: Sendable {
             }
         case .finale:
             stepFinale(dt: dt, world: world)
+        case .climb:
+            stepClimb(dt: dt, world: world, rng: &rng)
+        case .hang:
+            stepHang(world: world, rng: &rng)
         default:
             if isLeaving {
                 // Keep walking out; nothing to stand on past the edge, and no stopping.
-                move(dt: dt, world: world)
+                move(dt: dt, world: world, rng: &rng)
                 return
             }
             guard let surface = nearestSupport(world: world) else {
+                // Off the end of a window: sometimes grab the edge and hang on for a bit.
+                if let edge = lastSupport, !edge.isFloor, behavior.isMoving, ridingID == nil,
+                   config.enabledBehaviors.contains(.hang), Double.random(in: 0..<1, using: &rng) < config.hangChance {
+                    x = facing == .right ? edge.maxX : edge.minX
+                    y = edge.y
+                    lastSupport = nil
+                    setBehavior(.hang, duration: Double.random(in: 2...5, using: &rng))
+                    return
+                }
+                lastSupport = nil
+                ridingID = nil
                 startFalling(vx: movingSpeed * facing.sign * 0.5, vy: 0)
                 return
             }
             y = surface.y
-            if behavior == .walk || behavior == .run {
-                move(dt: dt, world: world)
+            lastSupport = surface
+            if behavior.isMoving {
+                move(dt: dt, world: world, rng: &rng)
             }
             if behavior.isGrounded && timeInBehavior >= behaviorDuration {
                 chooseNextBehavior(rng: &rng)
@@ -230,6 +286,9 @@ public struct Pet: Sendable {
     public mutating func beginDrag() {
         guard behavior != .countdown && behavior != .finale, !isGone else { return }
         isLeaving = false
+        climb = nil
+        ridingID = nil
+        partnerID = nil
         vx = 0
         vy = 0
         setBehavior(.dragged, duration: .infinity)
@@ -260,7 +319,11 @@ public struct Pet: Sendable {
         let base: Double
         switch behavior {
         case .walk: base = config.walkSpeed
-        case .run: base = config.runSpeed
+        case .run, .flee: base = config.runSpeed
+        case .chase: base = config.runSpeed * 1.12
+        case .follow: base = config.walkSpeed * pace
+        case .butterfly: base = config.walkSpeed * 1.8
+        case .tumble: base = config.runSpeed * max(0, 1 - timeInBehavior / max(behaviorDuration, 0.1))
         default: return 0
         }
         return base * config.speedMultiplier * gaitFactor
@@ -279,15 +342,39 @@ public struct Pet: Sendable {
         PetArt.pose(for: behavior, animal: animal, time: animationTime, phase: phase, finale: finaleStyle)
     }
 
+    /// Where the sprite's bottom-left corner goes, for a sprite of the given size in points.
+    /// Most poses stand on `(x, y)`; climbing pets have their feet on the wall, hanging pets
+    /// dangle below the edge they hold.
+    public func spriteOrigin(width: Double, height: Double) -> (x: Double, y: Double) {
+        let scale = width / Double(PetArt.width)
+        switch behavior {
+        case .climb:
+            let foot = Double(PetArt.climbFootColumn + 1) * scale
+            return (facing == .right ? x - foot : x - (width - foot), y)
+        case .hang:
+            return (x - width / 2, y - Double(PetArt.height - PetArt.hangGripRow) * scale)
+        default:
+            return (x - width / 2, y)
+        }
+    }
+
     private func nearestSupport(world: World) -> Platform? {
         world.platforms
             .filter { $0.spans(x) && abs($0.y - y) <= config.snapDistance }
             .min { abs($0.y - y) < abs($1.y - y) }
     }
 
-    private mutating func move(dt: Double, world: World) {
+    private mutating func move<R: RandomNumberGenerator>(dt: Double, world: World, rng: inout R) {
         let dir = facing.sign
         let newX = x + dir * movingSpeed * dt
+        let canClimb = config.enabledBehaviors.contains(.climb) && ridingID == nil && !isLeaving
+            && (behavior == .walk || behavior == .run)
+        // Meeting the side of a window: sometimes climb up it to reach its top.
+        if canClimb, let wall = windowSide(world: world, from: x, to: newX),
+           Double.random(in: 0..<1, using: &rng) < config.climbChance {
+            startClimb(wallX: wall.x, top: wall.top, ontoWindow: true)
+            return
+        }
         let leadingEdge = newX + dir * config.halfWidth
         // Turn around rather than walk off the usable area of the displays. A neighbouring
         // display at the same height lets the sheep wander across.
@@ -302,9 +389,14 @@ public struct Pet: Sendable {
         guard world.screen(containingX: leadingEdge, y: y + 1) != nil else {
             // At an outer edge (no display beyond it at any height) the pet may walk off.
             let outerEdge = !world.screens.contains { leadingEdge >= $0.minX && leadingEdge <= $0.maxX }
-            if config.walkOffScreen && outerEdge {
+            if config.walkOffScreen && outerEdge && behavior != .tumble {
                 isLeaving = true
                 x = newX
+            } else if canClimb, Double.random(in: 0..<1, using: &rng) < config.climbChance,
+                      let screen = world.screen(containingX: x, y: y + 1) {
+                // Climb a little way up the side of the screen, then drop back down.
+                let top = min(y + screen.height * Double.random(in: 0.25...0.7, using: &rng), screen.maxY - config.height - 40)
+                startClimb(wallX: dir > 0 ? screen.maxX : screen.minX, top: max(top, y + 40), ontoWindow: false)
             } else {
                 facing = facing.flipped
             }
@@ -314,7 +406,68 @@ public struct Pet: Sendable {
         // Walking past the end of a window edge: the next step finds no support and falls.
     }
 
-    private mutating func startFalling(vx: Double, vy: Double) {
+    /// The near side of a window crossed while moving from `oldX` to `newX`, if the window
+    /// reaches down to the pet and has a usable top edge to climb onto.
+    private func windowSide(world: World, from oldX: Double, to newX: Double) -> (x: Double, top: Double)? {
+        let dir = facing.sign
+        let hw = config.halfWidth
+        for w in world.windows where w.minY <= y + 4 && w.maxY >= y + config.climbReach + 20 {
+            let wallX = dir > 0 ? w.minX : w.maxX
+            let crossed = dir > 0 ? (oldX + hw <= wallX && newX + hw > wallX) : (oldX - hw >= wallX && newX - hw < wallX)
+            guard crossed else { continue }
+            let landing = wallX + dir * hw
+            if world.windowTops.contains(where: { abs($0.y - w.maxY) < 1 && $0.spans(landing) }) {
+                return (wallX, w.maxY)
+            }
+        }
+        return nil
+    }
+
+    private mutating func startClimb(wallX: Double, top: Double, ontoWindow: Bool) {
+        climb = (wallX, top, ontoWindow)
+        x = wallX
+        setBehavior(.climb, duration: .infinity)
+    }
+
+    private mutating func stepClimb<R: RandomNumberGenerator>(dt: Double, world: World, rng: inout R) {
+        guard let c = climb else { return startFalling(vx: 0, vy: 0) }
+        // A window wall that moved or closed leaves nothing to hold on to.
+        if c.ontoWindow, !world.windows.contains(where: {
+            abs((facing == .right ? $0.minX : $0.maxX) - c.wallX) < 4 && abs($0.maxY - c.top) < 4
+        }) {
+            climb = nil
+            return startFalling(vx: -facing.sign * 40, vy: 0)
+        }
+        y += config.climbSpeed * config.speedMultiplier * dt
+        x = c.wallX
+        if c.ontoWindow, y + config.climbReach >= c.top {
+            // Pull up onto the window's top edge and keep walking.
+            climb = nil
+            x = c.wallX + facing.sign * config.halfWidth
+            y = c.top
+            setBehavior(.walk, duration: Double.random(in: 2...6, using: &rng))
+        } else if !c.ontoWindow, y >= c.top {
+            climb = nil
+            facing = facing.flipped
+            startFalling(vx: facing.sign * 60, vy: 0)
+        }
+    }
+
+    private mutating func stepHang<R: RandomNumberGenerator>(world: World, rng: inout R) {
+        let holding = world.windowTops.contains { abs($0.y - y) <= config.snapDistance && x >= $0.minX - 2 && x <= $0.maxX + 2 }
+        if !holding || timeInBehavior >= behaviorDuration {
+            // Let go and drop, pushing off a little.
+            startFalling(vx: facing.sign * 30, vy: 0)
+        }
+    }
+
+    /// Jumps down from another pet's back.
+    mutating func hopOff() {
+        ridingID = nil
+        startFalling(vx: facing.sign * 90, vy: 260)
+    }
+
+    mutating func startFalling(vx: Double, vy: Double) {
         self.vx = vx
         self.vy = vy
         setBehavior(.fall, duration: .infinity)
@@ -350,7 +503,7 @@ public struct Pet: Sendable {
                 y = landing.y
                 vx = 0
                 vy = 0
-                if impact > config.startleSpeed {
+                if impact > config.startleSpeed && config.enabledBehaviors.contains(.call) {
                     setBehavior(.call, duration: 1.2)
                 } else {
                     setBehavior(.stand, duration: Double.random(in: 0.4...1.2, using: &rng))
@@ -448,11 +601,35 @@ public struct Pet: Sendable {
         .eat: [(.stand, 35), (.walk, 40), (.eat, 15), (.call, 10)],
         .call: [(.stand, 45), (.walk, 45), (.run, 10)],
         .impact: [(.stand, 70), (.call, 30)],
+        .tumble: [(.impact, 60), (.stand, 40)],
+        .dig: [(.stand, 40), (.eat, 30), (.walk, 30)],
+        .butterfly: [(.stand, 40), (.sit, 30), (.call, 30)],
+        .yawn: [(.sleep, 60), (.sit, 40)],
+        .nuzzle: [(.stand, 40), (.call, 30), (.walk, 30)],
+        .chase: [(.stand, 50), (.call, 50)],
+        .flee: [(.run, 40), (.stand, 60)],
+        .follow: [(.stand, 50), (.walk, 50)],
+        .playFight: [(.stand, 40), (.sit, 30), (.call, 30)],
+        .ride: [(.walk, 50), (.call, 25), (.sleep, 25)],
+    ]
+
+    /// Extra solo options mixed into the table above (kept separate so the original weights
+    /// stay readable).
+    static let extras: [Behavior: [(Behavior, Double)]] = [
+        .stand: [(.dig, 5), (.butterfly, 4)],
+        .walk: [(.dig, 4), (.butterfly, 4)],
+        .run: [(.tumble, 8)],
+        .sit: [(.yawn, 10)],
+        .eat: [(.dig, 6)],
     ]
 
     /// Allowed successors of a grounded behavior.
     public static func successors(of behavior: Behavior) -> [Behavior] {
-        (transitions[behavior] ?? []).map(\.0)
+        options(after: behavior).map(\.0)
+    }
+
+    static func options(after behavior: Behavior) -> [(Behavior, Double)] {
+        (transitions[behavior] ?? []) + (extras[behavior] ?? [])
     }
 
     /// How long a behavior lasts, in seconds.
@@ -466,12 +643,22 @@ public struct Pet: Sendable {
         case .eat: return 3...6
         case .call: return 1.2...1.2
         case .impact: return 1.6...1.6
-        case .fall, .dragged, .parachute, .meteor, .jetpack, .countdown, .finale: return .infinity ... .infinity
+        case .tumble: return 1.2...1.2
+        case .dig: return 3...6
+        case .butterfly: return 4...8
+        case .yawn: return 1.6...1.6
+        case .nuzzle: return 2.5...4
+        case .chase, .flee: return 4...8
+        case .follow: return 6...14
+        case .playFight: return 2.5...4.5
+        case .ride: return 5...14
+        case .hang: return 2...5
+        case .fall, .dragged, .parachute, .meteor, .jetpack, .countdown, .finale, .climb: return .infinity ... .infinity
         }
     }
 
     mutating func chooseNextBehavior<R: RandomNumberGenerator>(rng: inout R) {
-        var options = (Self.transitions[behavior] ?? []).filter {
+        var options = Self.options(after: behavior).filter {
             $0.0 == .stand || config.enabledBehaviors.contains($0.0)
         }
         if options.isEmpty { options = [(.stand, 1)] }
@@ -482,8 +669,9 @@ public struct Pet: Sendable {
             if pick < weight { next = candidate; break }
             pick -= weight
         }
+        if behavior.isSocial { partnerID = nil }
         // Sometimes wander off the other way.
-        if next == .walk || next == .run, Double.random(in: 0..<1, using: &rng) < 0.3 {
+        if next == .walk || next == .run || next == .butterfly, Double.random(in: 0..<1, using: &rng) < 0.3 {
             facing = facing.flipped
         }
         let range = Self.durationRange(for: next)

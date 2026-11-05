@@ -29,7 +29,13 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
 - Gravity, landing, throwing, turning around at screen edges, or (optional setting) walking off
   the outer edge of the screen and leaving, with a chance of a new pet showing up later.
 - Multi-monitor aware: sheep cross between displays that line up, and turn back otherwise.
-- Random behavior state machine: walk, run, sit, sleep, eat, call (bleat/meow/bark…, visual only).
+- Random behavior state machine: walk, run, sit, sleep, eat, call (bleat/meow/bark…, visual only),
+  dig, chase butterflies, yawn, trip and tumble.
+- Climbing: pets sometimes climb up the side of a window onto its top, or up a screen edge and
+  drop back down; walking off a window, they may hang from its edge before letting go.
+- Pets notice each other: they bump and turn or stop to nuzzle, chase and tag, fall into
+  follow-the-leader lines, play-fight, stack up on each other's backs (and ride along), and yawns
+  spread. Every behavior can be switched off in Settings.
 - Pixel art is drawn at runtime from code (`Sources/SheepCore/SheepArt.swift`): a 40x32 pet in a
   48x48 sprite (room for effects), shown at 2x, with blinking, ear flicks, a wagging tail,
   wool highlights and a soft ground shadow.

@@ -7,6 +7,7 @@ import Testing
     private func walker(at x: Double, facing: Facing, walkOff: Bool) -> Pet {
         var config = PetConfig()
         config.walkOffScreen = walkOff
+        config.climbChance = 0
         return Pet(x: x, y: 50, facing: facing, behavior: .walk, duration: 1000, config: config)
     }
 

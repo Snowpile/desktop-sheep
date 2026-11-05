@@ -205,8 +205,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         let mouse = NSEvent.mouseLocation
-        for controller in flock {
-            controller.sheep.step(dt: dt, world: world, rng: &rng)
+        var pets = flock.map(\.sheep)
+        for i in pets.indices {
+            pets[i].step(dt: dt, world: Social.world(world, for: i, in: pets), rng: &rng)
+        }
+        Social.interact(&pets, dt: dt, rng: &rng)
+        for (controller, pet) in zip(flock, pets) {
+            controller.sheep = pet
             controller.render()
             controller.updateClickThrough(mouse: mouse)
         }
