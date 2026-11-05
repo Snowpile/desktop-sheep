@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var removeItem: NSMenuItem?
     private var addItem: NSMenuItem?
     private var walkOnWindowsItem: NSMenuItem?
+    private var loginItem: NSMenuItem?
     private var animalItems: [NSMenuItem] = []
     private var entryItems: [NSMenuItem] = []
     private var finaleItem: NSMenuItem?
@@ -111,6 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         walkOnWindowsItem = add(menu, "Walk on Windows", #selector(toggleWalkOnWindows), "")
         add(menu, "Drop a Treat (or ⌥-click anywhere)", #selector(dropTreatAction), "t")
         add(menu, "Settings…", #selector(showSettings), ",")
+        loginItem = add(menu, "Launch at Login", #selector(toggleLaunchAtLogin), "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Desktop Sheep", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
@@ -134,6 +136,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         addItem?.isEnabled = flock.count < PetSettings.maxPets
         walkOnWindowsItem?.state = store.settings.walkOnWindows ? .on : .off
+        loginItem?.isEnabled = LaunchAtLogin.isAvailable
+        loginItem?.state = LaunchAtLogin.isEnabled ? .on : (LaunchAtLogin.needsApproval ? .mixed : .off)
+        loginItem?.toolTip = LaunchAtLogin.isAvailable ? nil : "Available when running Desktop Sheep.app"
         for item in entryItems { item.state = EntryStyle.allCases[item.tag] == store.settings.entryStyle ? .on : .off }
         for item in animalItems { item.state = AnimalChoice.all[item.tag] == store.settings.animal ? .on : .off }
     }
@@ -142,6 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func removePetAction() { store.update { $0.petCount -= 1 } }
     @objc private func toggleWalkOnWindows() { store.update { $0.walkOnWindows.toggle() } }
     @objc private func showSettings() { settingsWindow.show() }
+    @objc private func toggleLaunchAtLogin() { LaunchAtLogin.toggle() }
     @objc private func startFinale(_ sender: NSMenuItem) {
         let style = FinaleStyle.allCases[sender.tag]
         store.update { $0.finaleStyle = style }
