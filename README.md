@@ -16,6 +16,8 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
   the dog barks and chews a bone, the bunny hops and nibbles a carrot, the red panda chirps and
   munches bamboo. Pick one for all pets (or **Mixed**) from the menu or Settings; right-click a
   single pet to change just that one.
+- **Launch at Login** menu toggle (uses `SMAppService`; only in the bundled .app, and macOS may
+  ask you to allow it under System Settings › General › Login Items).
 - Settings window: animal, number of pets, entry style, finale style, walk on windows,
   walk off screen, speed, and which idle behaviors
   are allowed. Choices are saved in UserDefaults (`com.snowpile.desktop-sheep`) and restored on launch.
