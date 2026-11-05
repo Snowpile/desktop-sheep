@@ -31,6 +31,7 @@ public struct PetSettings: Codable, Equatable, Sendable {
     public var petCount = 1
     public var animal: AnimalChoice = .only(.sheep)
     public var entryStyle: EntryStyle = .drop
+    public var finaleStyle: FinaleStyle = .random
     public var walkOnWindows = true
     /// Stored as the disabled set so behaviors added in later versions start enabled.
     public var disabledBehaviors: Set<Behavior> = []
@@ -65,7 +66,7 @@ public struct PetSettings: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case petCount, animal, entryStyle, walkOnWindows, disabledBehaviors, speed
+        case petCount, animal, entryStyle, finaleStyle, walkOnWindows, disabledBehaviors, speed
     }
 
     public init(from decoder: Decoder) throws {
@@ -74,6 +75,7 @@ public struct PetSettings: Codable, Equatable, Sendable {
         petCount = (try? c.decodeIfPresent(Int.self, forKey: .petCount)) ?? d.petCount
         animal = (try? c.decodeIfPresent(AnimalChoice.self, forKey: .animal)) ?? d.animal
         entryStyle = (try? c.decodeIfPresent(EntryStyle.self, forKey: .entryStyle)) ?? d.entryStyle
+        finaleStyle = (try? c.decodeIfPresent(FinaleStyle.self, forKey: .finaleStyle)) ?? d.finaleStyle
         walkOnWindows = (try? c.decodeIfPresent(Bool.self, forKey: .walkOnWindows)) ?? d.walkOnWindows
         // Decode names one by one so a behavior removed in a later version doesn't drop the rest.
         let names = (try? c.decodeIfPresent([String].self, forKey: .disabledBehaviors)) ?? []
@@ -87,6 +89,7 @@ public struct PetSettings: Codable, Equatable, Sendable {
         try c.encode(petCount, forKey: .petCount)
         try c.encode(animal, forKey: .animal)
         try c.encode(entryStyle, forKey: .entryStyle)
+        try c.encode(finaleStyle, forKey: .finaleStyle)
         try c.encode(walkOnWindows, forKey: .walkOnWindows)
         try c.encode(disabledBehaviors.map(\.rawValue).sorted(), forKey: .disabledBehaviors)
         try c.encode(speed, forKey: .speed)

@@ -11,7 +11,7 @@ extension PetArt {
             drawFlameTrail(&c, frame: frame)
         case let .jetpack(frame):
             drawJetpack(&c, frame: frame)
-        case .none, .impact:
+        case .none, .impact, .countdown:
             break
         }
     }
@@ -19,6 +19,7 @@ extension PetArt {
     static func drawGearInFront(_ c: inout PixelCanvas, _ gear: Pose.Gear) {
         if case let .impact(frame) = gear { drawImpact(&c, frame: frame) }
         if case let .jetpack(frame) = gear { drawJetFlame(&c, frame: frame) }
+        if case let .countdown(n) = gear { drawCountdown(&c, digit: n) }
     }
 
     /// Straight pixel line (Bresenham).

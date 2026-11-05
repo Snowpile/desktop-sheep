@@ -90,6 +90,7 @@ public struct Pose: Hashable, Sendable {
     public var effect: Effect = .none
     /// Props and effects drawn around the whole pet (parachute, flames…).
     public var gear: Gear = .none
+    public var finale: FinaleLook = .none
 
     public enum Gear: Hashable, Sendable {
         case none
@@ -97,6 +98,7 @@ public struct Pose: Hashable, Sendable {
         case meteor(Int)
         case jetpack(Int)
         case impact(Int)
+        case countdown(Int)
     }
 
     public init() {}
@@ -148,6 +150,7 @@ public enum PetArt {
         (0x86, 0x8C, 0x98, 255), // 31 metal
         (0x5A, 0x54, 0x5C, 255), // 32 ash
         (0x33, 0x2E, 0x36, 255), // 33 char
+        (0xFF, 0xF2, 0x9A, 90),  // 34 tractor beam (translucent)
     ]
 
     /// Fully opaque palette indices (used for hit testing; the shadow doesn't count).
@@ -171,10 +174,14 @@ public enum PetArt {
         case .parachute: return 1.5
         case .meteor, .jetpack: return 12
         case .impact: return 5
+        case .countdown: return 1
+        case .finale: return 10
         }
     }
 
-    public static func frames(for behavior: Behavior, animal: Animal = .sheep) -> [Pose] {
+    public static func frames(for behavior: Behavior, animal: Animal = .sheep,
+                              finale: FinaleStyle = .vanish) -> [Pose] {
+        if behavior == .finale { return finaleFrames(finale) }
         if animal.hops, behavior == .walk { return hopFrames(height: 4) }
         if animal.hops, behavior == .run { return hopFrames(height: 8) }
         switch behavior {
@@ -191,14 +198,21 @@ public enum PetArt {
         case .meteor: return (0..<3).map(meteorPose)
         case .jetpack: return (0..<2).map(jetpackPose)
         case .impact: return (0..<8).map(impactPose)
+        case .countdown: return countdownFrames
+        case .finale: return finaleFrames(finale)
         }
     }
 
     /// The pose to show `time` seconds into a behavior. `phase` (0..<1) desynchronizes
     /// blinking between pets.
-    public static func pose(for behavior: Behavior, animal: Animal = .sheep, time: Double, phase: Double = 0) -> Pose {
-        let all = frames(for: behavior, animal: animal)
-        var pose = all[Int(max(time, 0) * framesPerSecond(behavior)) % all.count]
+    public static func pose(for behavior: Behavior, animal: Animal = .sheep, time: Double, phase: Double = 0,
+                            finale: FinaleStyle = .vanish) -> Pose {
+        let all = frames(for: behavior, animal: animal, finale: finale)
+        let fps = behavior == .finale ? finaleFramesPerSecond(finale) : framesPerSecond(behavior)
+        let index = Int(max(time, 0) * fps)
+        // Countdowns and finales play once and hold their last frame.
+        let once = behavior == .finale || behavior == .countdown
+        var pose = all[once ? min(index, all.count - 1) : index % all.count]
         if pose.eyes == .open && isBlinking(time: time, phase: phase) { pose.eyes = .closed }
         return pose
     }
@@ -390,10 +404,14 @@ public enum PetArt {
         if pose.shadow { c.fill(x: 4, y: ground, width: 28, height: 1, 10) }
         c.originY -= pose.lift
         drawGearBehind(&c, pose.gear)
-        if animal == .sheep { renderSheep(&c, pose) } else { renderCritter(&c, pose, animal) }
+        drawFinaleBehind(&c, pose.finale)
+        if showsPet(pose.finale) {
+            if animal == .sheep { renderSheep(&c, pose) } else { renderCritter(&c, pose, animal) }
+        }
         drawGearInFront(&c, pose.gear)
         c.originX = 0
         c.originY = 0
+        applyFinale(&c, pose.finale)
         return c
     }
 

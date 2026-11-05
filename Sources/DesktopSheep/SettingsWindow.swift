@@ -11,6 +11,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let countLabel = NSTextField(labelWithString: "")
     private let countStepper = NSStepper()
     private let entryPopup = NSPopUpButton()
+    private let finalePopup = NSPopUpButton()
     private let windowsCheck = NSButton(checkboxWithTitle: "Walk on top of windows", target: nil, action: nil)
     private let speedSlider = NSSlider()
     private let speedLabel = NSTextField(labelWithString: "")
@@ -49,6 +50,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         entryPopup.target = self
         entryPopup.action = #selector(entryChanged)
 
+        for style in FinaleStyle.allCases { finalePopup.addItem(withTitle: style.title) }
+        finalePopup.target = self
+        finalePopup.action = #selector(finaleChanged)
+
         windowsCheck.target = self
         windowsCheck.action = #selector(windowsChanged)
 
@@ -73,6 +78,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             [label("Animal:"), animalPopup],
             [label("Number of pets:"), row(countStepper, countLabel)],
             [label("Entry style:"), entryPopup],
+            [label("Grand finale:"), finalePopup],
             [label("Windows:"), windowsCheck],
             [label("Speed:"), row(speedSlider, speedLabel)],
             [label("Behaviors:"), behaviorStack],
@@ -124,6 +130,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         countStepper.integerValue = s.petCount
         countLabel.stringValue = "\(s.petCount)"
         entryPopup.selectItem(at: EntryStyle.allCases.firstIndex(of: s.entryStyle) ?? 0)
+        finalePopup.selectItem(at: FinaleStyle.allCases.firstIndex(of: s.finaleStyle) ?? 0)
         windowsCheck.state = s.walkOnWindows ? .on : .off
         speedSlider.doubleValue = s.speed
         speedLabel.stringValue = String(format: "%.2g×", s.speed)
@@ -140,6 +147,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let i = entryPopup.indexOfSelectedItem
         guard EntryStyle.allCases.indices.contains(i) else { return }
         store.update { $0.entryStyle = EntryStyle.allCases[i] }
+    }
+    @objc private func finaleChanged() {
+        let i = finalePopup.indexOfSelectedItem
+        guard FinaleStyle.allCases.indices.contains(i) else { return }
+        store.update { $0.finaleStyle = FinaleStyle.allCases[i] }
     }
     @objc private func windowsChanged() { store.update { $0.walkOnWindows = windowsCheck.state == .on } }
     @objc private func speedChanged() {
