@@ -16,7 +16,8 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
   the dog barks and chews a bone, the bunny hops and nibbles a carrot, the red panda chirps and
   munches bamboo. Pick one for all pets (or **Mixed**) from the menu or Settings; right-click a
   single pet to change just that one.
-- Settings window: animal, number of pets, entry style, walk on windows, speed, and which idle behaviors
+- Settings window: animal, number of pets, entry style, finale style, walk on windows,
+  walk off screen, speed, and which idle behaviors
   are allowed. Choices are saved in UserDefaults (`com.snowpile.desktop-sheep`) and restored on launch.
 - New pets arrive in style (menu **New Pets Arrive By** or Settings): dropped from the top,
   drifting down on a parachute, as a flaming meteor that lands with a dazed thud, by jetpack from
@@ -25,7 +26,8 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
   pets go at once: burn to a pile of ash that blows away, explode into confetti, vanish in a puff,
   float away on balloons, get beamed up, shrink to nothing, or a surprise mix. Afterwards the menu
   offers **Bring Back Pets**.
-- Gravity, landing, throwing, turning around at screen edges.
+- Gravity, landing, throwing, turning around at screen edges, or (optional setting) walking off
+  the outer edge of the screen and leaving, with a chance of a new pet showing up later.
 - Multi-monitor aware: sheep cross between displays that line up, and turn back otherwise.
 - Random behavior state machine: walk, run, sit, sleep, eat, call (bleat/meow/bark…, visual only).
 - Pixel art is drawn at runtime from code (`Sources/SheepCore/SheepArt.swift`): a 40x32 pet in a

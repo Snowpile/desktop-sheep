@@ -13,6 +13,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let entryPopup = NSPopUpButton()
     private let finalePopup = NSPopUpButton()
     private let windowsCheck = NSButton(checkboxWithTitle: "Walk on top of windows", target: nil, action: nil)
+    private let walkOffCheck = NSButton(checkboxWithTitle: "Walk off the screen edge and leave", target: nil, action: nil)
+    private let newPetCheck = NSButton(checkboxWithTitle: "…and sometimes a new pet shows up later", target: nil, action: nil)
     private let speedSlider = NSSlider()
     private let speedLabel = NSTextField(labelWithString: "")
     private var behaviorChecks: [Behavior: NSButton] = [:]
@@ -56,6 +58,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
         windowsCheck.target = self
         windowsCheck.action = #selector(windowsChanged)
+        walkOffCheck.target = self
+        walkOffCheck.action = #selector(walkOffChanged)
+        newPetCheck.target = self
+        newPetCheck.action = #selector(newPetChanged)
+        let movement = NSStackView(views: [windowsCheck, walkOffCheck, newPetCheck])
+        movement.orientation = .vertical
+        movement.alignment = .leading
+        movement.spacing = 4
 
         speedSlider.minValue = PetSettings.speedRange.lowerBound
         speedSlider.maxValue = PetSettings.speedRange.upperBound
@@ -79,7 +89,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             [label("Number of pets:"), row(countStepper, countLabel)],
             [label("Entry style:"), entryPopup],
             [label("Grand finale:"), finalePopup],
-            [label("Windows:"), windowsCheck],
+            [label("Wandering:"), movement],
             [label("Speed:"), row(speedSlider, speedLabel)],
             [label("Behaviors:"), behaviorStack],
         ])
@@ -88,6 +98,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         grid.column(at: 0).xPlacement = .trailing
         grid.rowAlignment = .firstBaseline
         grid.row(at: grid.numberOfRows - 1).yPlacement = .top
+        for i in 0..<grid.numberOfRows where grid.cell(atColumnIndex: 1, rowIndex: i).contentView is NSStackView {
+            grid.row(at: i).yPlacement = .top
+        }
         grid.translatesAutoresizingMaskIntoConstraints = false
 
         let content = NSView()
@@ -132,6 +145,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         entryPopup.selectItem(at: EntryStyle.allCases.firstIndex(of: s.entryStyle) ?? 0)
         finalePopup.selectItem(at: FinaleStyle.allCases.firstIndex(of: s.finaleStyle) ?? 0)
         windowsCheck.state = s.walkOnWindows ? .on : .off
+        walkOffCheck.state = s.walkOffScreen ? .on : .off
+        newPetCheck.state = s.newPetAfterWalkOff ? .on : .off
+        newPetCheck.isEnabled = s.walkOffScreen
         speedSlider.doubleValue = s.speed
         speedLabel.stringValue = String(format: "%.2g×", s.speed)
         for (behavior, check) in behaviorChecks { check.state = s.isEnabled(behavior) ? .on : .off }
@@ -153,6 +169,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         guard FinaleStyle.allCases.indices.contains(i) else { return }
         store.update { $0.finaleStyle = FinaleStyle.allCases[i] }
     }
+    @objc private func walkOffChanged() { store.update { $0.walkOffScreen = walkOffCheck.state == .on } }
+    @objc private func newPetChanged() { store.update { $0.newPetAfterWalkOff = newPetCheck.state == .on } }
     @objc private func windowsChanged() { store.update { $0.walkOnWindows = windowsCheck.state == .on } }
     @objc private func speedChanged() {
         // Snap to quarter steps so the label stays tidy.

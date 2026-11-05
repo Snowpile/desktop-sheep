@@ -44,6 +44,8 @@ public struct PetConfig: Sendable {
     public var parachuteSpeed: Double = 70
     public var meteorSpeed: Double = 650
     public var jetpackSpeed: Double = 170
+    /// Walk off outer screen edges and leave instead of turning around.
+    public var walkOffScreen = false
     /// Multiplies walk and run speed (user setting).
     public var speedMultiplier: Double = 1
     /// Behaviors the state machine may pick. `stand` is always allowed.
@@ -72,8 +74,13 @@ public struct Pet: Sendable {
     /// 0..<1, desynchronizes animation details (like blinking) between pets.
     public var phase: Double = 0
     public private(set) var finaleStyle: FinaleStyle = .vanish
-    /// True once the finale has finished; the pet should be removed.
-    public private(set) var isGone = false
+    /// Set once the pet has left for good (finale finished or walked off-screen); remove it.
+    public private(set) var exit: Exit?
+    public var isGone: Bool { exit != nil }
+    /// Walking off the edge of the screen (only when `walkOffScreen` is on).
+    public private(set) var isLeaving = false
+
+    public enum Exit: Sendable { case finale, walkedOff }
     /// Where a jetpack arrival is heading.
     private var targetX: Double = 0
 
@@ -156,6 +163,11 @@ public struct Pet: Sendable {
         case .finale:
             stepFinale(dt: dt, world: world)
         default:
+            if isLeaving {
+                // Keep walking out; nothing to stand on past the edge, and no stopping.
+                move(dt: dt, world: world)
+                return
+            }
             guard let surface = nearestSupport(world: world) else {
                 startFalling(vx: movingSpeed * facing.sign * 0.5, vy: 0)
                 return
@@ -210,13 +222,14 @@ public struct Pet: Sendable {
             break
         }
         let top = world.screens.map(\.maxY).max() ?? 0
-        if timeInBehavior >= behaviorDuration || y > top + 20 { isGone = true }
+        if timeInBehavior >= behaviorDuration || y > top + 20 { exit = .finale }
     }
 
     // MARK: - Dragging
 
     public mutating func beginDrag() {
-        guard behavior != .countdown && behavior != .finale else { return }
+        guard behavior != .countdown && behavior != .finale, !isGone else { return }
+        isLeaving = false
         vx = 0
         vy = 0
         setBehavior(.dragged, duration: .infinity)
@@ -278,8 +291,23 @@ public struct Pet: Sendable {
         let leadingEdge = newX + dir * config.halfWidth
         // Turn around rather than walk off the usable area of the displays. A neighbouring
         // display at the same height lets the sheep wander across.
+        if isLeaving {
+            x = newX
+            let trailingEdge = x - dir * config.halfWidth * 2
+            if !world.screens.contains(where: { trailingEdge >= $0.minX && trailingEdge <= $0.maxX }) {
+                exit = .walkedOff
+            }
+            return
+        }
         guard world.screen(containingX: leadingEdge, y: y + 1) != nil else {
-            facing = facing.flipped
+            // At an outer edge (no display beyond it at any height) the pet may walk off.
+            let outerEdge = !world.screens.contains { leadingEdge >= $0.minX && leadingEdge <= $0.maxX }
+            if config.walkOffScreen && outerEdge {
+                isLeaving = true
+                x = newX
+            } else {
+                facing = facing.flipped
+            }
             return
         }
         x = newX

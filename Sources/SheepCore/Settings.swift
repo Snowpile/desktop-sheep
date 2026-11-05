@@ -33,6 +33,10 @@ public struct PetSettings: Codable, Equatable, Sendable {
     public var entryStyle: EntryStyle = .drop
     public var finaleStyle: FinaleStyle = .random
     public var walkOnWindows = true
+    /// Pets may walk off the edge of the screen and disappear.
+    public var walkOffScreen = false
+    /// After a pet walks off, sometimes a new one shows up a little later.
+    public var newPetAfterWalkOff = true
     /// Stored as the disabled set so behaviors added in later versions start enabled.
     public var disabledBehaviors: Set<Behavior> = []
     /// Multiplies walking and running speed.
@@ -63,10 +67,11 @@ public struct PetSettings: Codable, Equatable, Sendable {
     public func apply(to config: inout PetConfig) {
         config.speedMultiplier = speed
         config.enabledBehaviors = enabledBehaviors
+        config.walkOffScreen = walkOffScreen
     }
 
     private enum CodingKeys: String, CodingKey {
-        case petCount, animal, entryStyle, finaleStyle, walkOnWindows, disabledBehaviors, speed
+        case petCount, animal, entryStyle, finaleStyle, walkOnWindows, walkOffScreen, newPetAfterWalkOff, disabledBehaviors, speed
     }
 
     public init(from decoder: Decoder) throws {
@@ -77,6 +82,8 @@ public struct PetSettings: Codable, Equatable, Sendable {
         entryStyle = (try? c.decodeIfPresent(EntryStyle.self, forKey: .entryStyle)) ?? d.entryStyle
         finaleStyle = (try? c.decodeIfPresent(FinaleStyle.self, forKey: .finaleStyle)) ?? d.finaleStyle
         walkOnWindows = (try? c.decodeIfPresent(Bool.self, forKey: .walkOnWindows)) ?? d.walkOnWindows
+        walkOffScreen = (try? c.decodeIfPresent(Bool.self, forKey: .walkOffScreen)) ?? d.walkOffScreen
+        newPetAfterWalkOff = (try? c.decodeIfPresent(Bool.self, forKey: .newPetAfterWalkOff)) ?? d.newPetAfterWalkOff
         // Decode names one by one so a behavior removed in a later version doesn't drop the rest.
         let names = (try? c.decodeIfPresent([String].self, forKey: .disabledBehaviors)) ?? []
         disabledBehaviors = Set(names.map { $0 == "bleat" ? "call" : $0 }.compactMap(Behavior.init(rawValue:)))
@@ -91,6 +98,8 @@ public struct PetSettings: Codable, Equatable, Sendable {
         try c.encode(entryStyle, forKey: .entryStyle)
         try c.encode(finaleStyle, forKey: .finaleStyle)
         try c.encode(walkOnWindows, forKey: .walkOnWindows)
+        try c.encode(walkOffScreen, forKey: .walkOffScreen)
+        try c.encode(newPetAfterWalkOff, forKey: .newPetAfterWalkOff)
         try c.encode(disabledBehaviors.map(\.rawValue).sorted(), forKey: .disabledBehaviors)
         try c.encode(speed, forKey: .speed)
     }

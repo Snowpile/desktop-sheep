@@ -22,6 +22,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var bringBackItem: NSMenuItem?
     /// How many pets there were before the last finale, so they can be brought back.
     private var petsBeforeFinale = 0
+    /// Times (CACurrentMediaTime) when a new pet will show up after one walked off.
+    private var pendingArrivals: [Double] = []
     private var currentAnimalChoice: AnimalChoice?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -197,6 +199,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let dt = min(now - lastTick, 0.1)
         lastTick = now
         if now - lastScan > 0.4 { rescan() }
+        if let due = pendingArrivals.firstIndex(where: { $0 <= now }) {
+            pendingArrivals.remove(at: due)
+            if store.settings.walkOffScreen && flock.count < PetSettings.maxPets { store.update { $0.petCount += 1 } }
+        }
 
         let mouse = NSEvent.mouseLocation
         for controller in flock {
@@ -204,9 +210,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             controller.render()
             controller.updateClickThrough(mouse: mouse)
         }
-        // Pets that finished their finale leave for good.
+        // Pets that finished their finale or walked off-screen leave for good.
         if flock.contains(where: { $0.sheep.isGone }) {
-            for controller in flock where controller.sheep.isGone { controller.close() }
+            for controller in flock where controller.sheep.isGone {
+                controller.close()
+                if controller.sheep.exit == .walkedOff && store.settings.newPetAfterWalkOff
+                    && Double.random(in: 0..<1, using: &rng) < 0.6 {
+                    pendingArrivals.append(now + Double.random(in: 15...60, using: &rng))
+                }
+            }
             flock.removeAll { $0.sheep.isGone }
             store.update { $0.petCount = flock.count }
         }
