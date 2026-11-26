@@ -2,7 +2,7 @@ import Foundation
 
 /// Short original sound effects, synthesized from oscillators and noise (no recordings).
 public enum SoundEffect: String, CaseIterable, Sendable {
-    case bleat, meow, bark, squeak, chirp, thud, poof, boom, sizzle, pop, beam, oink, honk, trumpet, chitter
+    case bleat, meow, bark, squeak, chirp, thud, poof, boom, sizzle, pop, beam, oink, honk, trumpet, chitter, roar, chomp
 
     /// The call sound for an animal.
     public static func call(for animal: Animal) -> SoundEffect {
@@ -16,6 +16,7 @@ public enum SoundEffect: String, CaseIterable, Sendable {
         case .hippo: return .honk
         case .elephant: return .trumpet
         case .flyingSquirrel: return .chitter
+        case .tiger: return .roar
         }
     }
 
@@ -106,6 +107,29 @@ public enum Synth {
                     (2600 - Double(k % 2) * 400 - 500 * (t / d), envelope(t, d, attack: 0.003, release: 0.015))
                 }
                 out += Array(repeating: 0, count: Int(0.025 * sampleRate))
+            }
+        case .roar:
+            // A rough growl that swells into a roar and trails off.
+            var lp = 0.0
+            out = tone(seconds: 1.1, harmonics: [1, 0.9, 0.75, 0.6, 0.45, 0.3]) { t, d in
+                let x = t / d
+                return (110 + 70 * sin(min(x * 1.6, 1) * .pi) + sin(t * 2 * .pi * 23) * 6, envelope(t, d, attack: 0.15, release: 0.4))
+            }
+            out = out.enumerated().map { i, s in
+                lp += (white() - lp) * 0.2
+                return s * 0.7 + lp * 0.9 * envelope(Double(i) / sampleRate, 1.1, attack: 0.15, release: 0.4)
+            }
+        case .chomp:
+            // Three quick crunchy bites.
+            var lp = 0.0
+            out = []
+            for _ in 0..<3 {
+                out += (0..<Int(0.09 * sampleRate)).map { i in
+                    let t = Double(i) / sampleRate
+                    lp += (white() - lp) * 0.35
+                    return (lp + sin(2 * .pi * 180 * t) * 0.4) * envelope(t, 0.09, attack: 0.003, release: 0.06)
+                }
+                out += Array(repeating: 0, count: Int(0.08 * sampleRate))
             }
         case .thud:
             var lp = 0.0

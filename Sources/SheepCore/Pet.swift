@@ -17,11 +17,13 @@ public enum Behavior: String, CaseIterable, Codable, Sendable {
     case startled, chaseCursor, fetchTreat
     /// Peeking out from behind a window's side; napping on the menu bar.
     case peek, menuNap
+    /// A tiger chasing down another pet, then gulping it; the eaten pet is away for a while.
+    case hunt, devour, eaten
 
     /// Behaviors that happen while standing on something.
     public var isGrounded: Bool {
         switch self {
-        case .fall, .dragged, .parachute, .meteor, .jetpack, .countdown, .finale, .climb, .hang, .menuNap: return false
+        case .fall, .dragged, .parachute, .meteor, .jetpack, .countdown, .finale, .climb, .hang, .menuNap, .eaten: return false
         default: return true
         }
     }
@@ -29,7 +31,7 @@ public enum Behavior: String, CaseIterable, Codable, Sendable {
     /// Grounded behaviors that move the pet along its surface.
     public var isMoving: Bool {
         switch self {
-        case .walk, .run, .chase, .flee, .follow, .butterfly, .tumble, .chaseCursor, .fetchTreat: return true
+        case .walk, .run, .chase, .flee, .follow, .butterfly, .tumble, .chaseCursor, .fetchTreat, .hunt: return true
         default: return false
         }
     }
@@ -37,7 +39,7 @@ public enum Behavior: String, CaseIterable, Codable, Sendable {
     /// Behaviors that need another pet.
     public var isSocial: Bool {
         switch self {
-        case .nuzzle, .chase, .flee, .follow, .playFight, .ride: return true
+        case .nuzzle, .chase, .flee, .follow, .playFight, .ride, .hunt: return true
         default: return false
         }
     }
@@ -224,6 +226,8 @@ public struct Pet: Sendable {
             stepClimb(dt: dt, world: world, rng: &rng)
         case .hang:
             stepHang(world: world, rng: &rng)
+        case .eaten:
+            if timeInBehavior >= behaviorDuration { enter(in: world, style: .random, rng: &rng) }
         case .menuNap:
             let stillThere = world.menuBars.contains { x >= $0.minX && x <= $0.maxX && abs($0.minY - 6 - y) < 2 }
             if !stillThere || timeInBehavior >= behaviorDuration {
@@ -305,6 +309,16 @@ public struct Pet: Sendable {
         if timeInBehavior >= behaviorDuration || y > top + 20 { exit = .finale }
     }
 
+    /// Gulped by a tiger: gone from view until it arrives again in a few seconds.
+    mutating func beEaten<R: RandomNumberGenerator>(rng: inout R) {
+        partnerID = nil
+        ridingID = nil
+        climb = nil
+        vx = 0
+        vy = 0
+        setBehavior(.eaten, duration: Double.random(in: Self.durationRange(for: .eaten), using: &rng))
+    }
+
     // MARK: - Dragging
 
     public mutating func beginDrag() {
@@ -345,6 +359,7 @@ public struct Pet: Sendable {
         case .walk: base = config.walkSpeed
         case .run, .flee: base = config.runSpeed
         case .chase: base = config.runSpeed * 1.12
+        case .hunt: base = config.runSpeed * 1.3
         case .follow: base = config.walkSpeed * pace
         case .chaseCursor: base = config.runSpeed * 1.05 * pace
         case .fetchTreat: base = config.runSpeed * pace
@@ -682,6 +697,8 @@ public struct Pet: Sendable {
         .chaseCursor: [(.call, 50), (.sit, 50)],
         .fetchTreat: [(.stand, 100)],
         .peek: [(.walk, 100)],
+        .hunt: [(.call, 60), (.stand, 40)],
+        .devour: [(.sit, 60), (.stand, 40)],
     ]
 
     /// Extra solo options mixed into the table above (kept separate so the original weights
@@ -729,6 +746,9 @@ public struct Pet: Sendable {
         case .peek: return 3...6
         case .menuNap: return 8...20
         case .hang: return 2...5
+        case .hunt: return 6...9
+        case .devour: return 2.4...2.4
+        case .eaten: return 8...14
         case .fall, .dragged, .parachute, .meteor, .jetpack, .countdown, .finale, .climb: return .infinity ... .infinity
         }
     }

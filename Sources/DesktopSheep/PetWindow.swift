@@ -38,6 +38,9 @@ final class PetController {
     var pose: Pose { sheep.pose }
 
     func render() {
+        // An eaten pet is away until it arrives again.
+        let away = sheep.behavior == .eaten
+        if away == window.isVisible { away ? window.orderOut(nil) : window.orderFrontRegardless() }
         let size = Sprites.shared.size
         let origin = sheep.spriteOrigin(width: size.width, height: size.height)
         window.setFrameOrigin(CGPoint(x: origin.x.rounded(), y: origin.y.rounded()))

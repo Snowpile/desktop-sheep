@@ -164,6 +164,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         case .startled: return "Startle at fast mouse moves"
         case .peek: return "Peek out from behind windows"
         case .menuNap: return "Nap on the menu bar"
+        case .hunt: return "Tigers eat other pets (they come back)"
         default: return behavior.rawValue.capitalized
         }
     }

@@ -90,6 +90,15 @@ public enum Social {
                 }
             case .flee:
                 if pet.timeInBehavior > 0.3 { pet.facing = towards.flipped }
+            case .hunt:
+                pet.facing = towards
+                if d < hw * 1.1 {
+                    // Caught! Gulp.
+                    let j = pets.firstIndex { $0.id == partner.id }!
+                    pets[j].beEaten(rng: &rng)
+                    pet.partnerID = nil
+                    pet.setBehavior(.devour, duration: Pet.durationRange(for: .devour).lowerBound)
+                }
             case .follow:
                 guard partner.behavior == .walk || partner.behavior == .follow, d < hw * 12 else {
                     pet.partnerID = nil
@@ -129,6 +138,14 @@ public enum Social {
                         pets[i].facing = pets[i].facing.flipped
                         pets[j].facing = pets[j].facing.flipped
                     }
+                    continue
+                }
+                // Now and then a tiger goes after a pet that isn't another tiger.
+                if a.animal.hunts, !b.animal.hunts, [.stand, .walk, .sit].contains(a.behavior), b.partnerID == nil,
+                   b.behavior.isGrounded, d < 600, a.config.enabledBehaviors.contains(.hunt),
+                   Double.random(in: 0..<1, using: &rng) < dt / 60 {
+                    start(&pets[i], .hunt, partner: b.id, rng: &rng)
+                    start(&pets[j], .flee, partner: a.id, rng: &rng)
                     continue
                 }
                 // A pet that starts running may go after a nearby friend.

@@ -207,6 +207,9 @@ public enum PetArt {
         case .peek: return 2
         case .menuNap: return 1.5
         case .chaseCursor, .fetchTreat: return 14
+        case .hunt: return 14
+        case .devour: return 5
+        case .eaten: return 1
         }
     }
 
@@ -253,6 +256,9 @@ public enum PetArt {
         case .peek: return (0..<4).map { i in make { $0.eyes = i == 2 ? .wide : .open; $0.earUp = i % 2 == 1; $0.headDY = -1 } }
         case .menuNap: return sleepFrames.map { var p = $0; p.shadow = false; return p }
         case .ride: return sitFrames.map { var p = $0; p.shadow = false; p.eyes = $0.earUp ? .happy : .open; return p }
+        case .hunt: return runFrames.map { var p = $0; p.mouthOpen = true; p.earUp = true; p.headDY += 1; return p }
+        case .devour: return (0..<4).map { i in make { $0.mouthOpen = i % 2 == 0; $0.eyes = i == 3 ? .happy : .closed; $0.headDY = i % 2; $0.tailDY = -1 } }
+        case .eaten: return [Pose()] // not shown; the app hides the window meanwhile
         }
     }
 

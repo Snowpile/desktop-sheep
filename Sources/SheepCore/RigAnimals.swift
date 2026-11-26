@@ -67,6 +67,10 @@ private func spec(_ s: Animal) -> Spec {
         return Spec(bodyC: RigPoint(x: 28, y: 46), bodyR: (12, 7.5), hipX: 21, shoulderX: 34, legTop: 50, legW: (1.7, 1.4),
                     headC: RigPoint(x: 42.5, y: 38), headR: (7.2, 6.6),
                     fur: RGB(0xA38F7E), dark: RGB(0x6B584B), belly: RGB(0xF4EDE2), leg: RGB(0xA38F7E), paw: RGB(0xF4EDE2))
+    case .tiger:
+        return Spec(bodyC: RigPoint(x: 27, y: 40), bodyR: (16, 8.5), hipX: 18, shoulderX: 36, legTop: 45, legW: (2.8, 2.4),
+                    headC: RigPoint(x: 47, y: 29), headR: (8.6, 7.8),
+                    fur: RGB(0xF08A2C), dark: RGB(0x2E2220), belly: RGB(0xFFF4E6), leg: RGB(0xF08A2C), paw: RGB(0xFFF4E6))
     }
 }
 
@@ -270,6 +274,16 @@ private struct Builder {
                 spec.belly, G.body, decal: true)
         }
         switch species {
+        case .tiger:
+            for (i, x) in [14.0, 18.5, 23.0, 27.5, 32.0].enumerated() {
+                let top = body(RigPoint(x: x, y: spec.bodyC.y - spec.bodyR.y + 0.2))
+                let lean = i % 2 == 0 ? 1.4 : 0.6
+                add(.capsule(a: top, b: top + RigPoint(x: lean, y: 6.0), ra: 1.0, rb: 0.45), spec.dark, G.body, decal: true)
+            }
+            for x in [18.0, 33.0] {
+                let low = body(RigPoint(x: x, y: spec.bodyC.y + spec.bodyR.y * 0.55))
+                add(.capsule(a: low, b: low + RigPoint(x: -0.8, y: -3.2), ra: 0.8, rb: 0.4), spec.dark, G.body, decal: true)
+            }
         case .cat:
             for (i, x) in [18.0, 23.5, 29.0].enumerated() {
                 let top = body(RigPoint(x: x, y: spec.bodyC.y - spec.bodyR.y + 0.3))
@@ -310,15 +324,21 @@ private struct Builder {
             add(.ellipse(c: (base + RigPoint(x: -1.5, y: -0.5)).rotated(a, around: base), rx: 3.6, ry: 3.2, angle: 0), spec.fur, G.tail)
         case .bunny:
             add(.ellipse(c: base + RigPoint(x: -0.5, y: 3), rx: 4.2, ry: 4, angle: 0), RGB(0xFFFFFF), G.tail)
-        case .cat:
+        case .cat, .tiger:
             let pts = chain([RigPoint(x: 0, y: 0), RigPoint(x: -5, y: -3), RigPoint(x: -7.5, y: -9), RigPoint(x: -6.5, y: -15), RigPoint(x: -3.5, y: -18.5)])
             for (i, (u, v)) in zip(pts, pts.dropFirst()).enumerated() {
                 let r1 = 2.3 - Double(i) * 0.15, r2 = 2.3 - Double(i + 1) * 0.15
-                add(.capsule(a: u, b: v, ra: r1, rb: r2), i >= 3 ? spec.dark : spec.fur, G.tail)
-                if i == 1 || i == 2 {
+                add(.capsule(a: u, b: v, ra: r1, rb: r2), i >= 3 && species == .cat ? spec.dark : spec.fur, G.tail)
+                if species == .tiger {
+                    // Thin dark bands across the tail.
+                    let d = v - u, mid = u + d * 0.5
+                    let across = RigPoint(x: -d.y, y: d.x) * ((r1 + 0.6) / max(d.length, 1e-6))
+                    add(.capsule(a: mid + across, b: mid - across, ra: 0.7, rb: 0.7), spec.dark, G.tail, decal: true)
+                } else if i == 1 || i == 2 {
                     add(.capsule(a: u + (v - u) * 0.45, b: u + (v - u) * 0.6, ra: r1 + 0.3, rb: r1 + 0.3), spec.dark, G.tail, decal: true)
                 }
             }
+            if species == .tiger { add(.ellipse(c: pts[4], rx: 2.0, ry: 2.0, angle: 0), spec.dark, G.tail) }
         case .dog:
             let pts = chain([RigPoint(x: 0, y: 0), RigPoint(x: -3.5, y: -5), RigPoint(x: -5, y: -11)])
             add(.capsule(a: pts[0], b: pts[1], ra: 2.3, rb: 1.9), spec.fur, G.tail)
@@ -538,6 +558,34 @@ private struct Builder {
             add(.ellipse(c: head(7.0, 1.4), rx: 0.9, ry: 0.7, angle: 0), RGB(0x3A2A2A), G.head, decal: true)
             mouth(at: head(5.8, 3.6), color: spec.dark)
             blush(head(0.6, 2.6))
+        case .tiger:
+            // Round ears with dark backs, white cheeks and brows, stripes on the forehead and cheeks.
+            for (far, dx) in [(true, -4.4), (false, 0.6)] {
+                let c = head(dx, -6.6)
+                add(.ellipse(c: c, rx: 2.6, ry: 2.4, angle: ear), far ? spec.fur.shade(-0.2) : spec.fur, far ? G.farEar : G.head)
+                add(.ellipse(c: c + RigPoint(x: 0.2, y: 0.4), rx: 1.3, ry: 1.1, angle: ear), far ? spec.dark : spec.belly, far ? G.farEar : G.head, decal: true)
+            }
+            add(.ellipse(c: head(0, 0), rx: rx, ry: ry, angle: headAngle), spec.fur, G.head)
+            add(.ellipse(c: head(-4.8, 3.6), rx: 3.6, ry: 2.8, angle: 0.3), spec.belly, G.head) // cheek ruff
+            add(.ellipse(c: head(4.0, 3.6), rx: 4.8, ry: 3.4, angle: headAngle), spec.belly, G.head, decal: true)
+            for (dx, top) in [(-2.0, -7.4), (0.0, -7.6), (2.0, -7.2)] {
+                add(.capsule(a: head(dx, top), b: head(dx + 0.2, top + 2.6), ra: 0.7, rb: 0.4), spec.dark, G.head, decal: true)
+            }
+            add(.ellipse(c: head(3.0, -3.6), rx: 1.4, ry: 0.6, angle: -0.2), spec.belly, G.head, decal: true)
+            eyes(near: head(3.0, -1.6), far: head(-2.4, -1.8), sclera: false)
+            add(.triangle(head(6.6, 1.2), head(8.8, 1.2), head(7.7, 2.6), round: 0.3), RGB(0xD9707E), G.head, decal: true)
+            if pose.mouthOpen {
+                // A big toothy roar.
+                add(.ellipse(c: head(6.8, 5.2), rx: 2.2, ry: 1.9, angle: 0), RGB(0x7A2A34), G.head, decal: true)
+                add(.triangle(head(5.4, 3.8), head(6.4, 3.8), head(5.9, 5.0), round: 0.1), RGB(0xFFFFFF), G.head, decal: true)
+                add(.triangle(head(7.4, 3.8), head(8.4, 3.8), head(7.9, 5.0), round: 0.1), RGB(0xFFFFFF), G.head, decal: true)
+            } else {
+                mouth(at: head(7.4, 4.4), color: spec.dark)
+            }
+            for (dy, ang) in [(2.6, -0.15), (3.8, 0.12)] {
+                let s = head(9.0, dy)
+                add(.line([s, s + RigPoint(x: 4.5, y: ang * 4.5)], width: 0.45), RGB(0xFFFFFF, alpha: 0.9), G.fx, decal: true)
+            }
         }
     }
 
@@ -641,6 +689,11 @@ private struct Builder {
                 for (dx, dy) in [(-1.5, -1.8), (1.2, -1.6), (0, -3.0)] {
                     add(.pixel(x: Int((c.x + dx).rounded(.down)), y: Int((c.y + dy).rounded(.down))), RGB(0x2A1E20), G.fx, decal: true)
                 }
+            case .tiger:
+                // A drumstick: meaty end and a bone handle.
+                add(.capsule(a: RigPoint(x: x - 3.5, y: ground - 1.3), b: RigPoint(x: x + 0.5, y: ground - 1.3), ra: 0.6, rb: 0.6), RGB(0xF4EAD6), G.fx)
+                add(.ellipse(c: RigPoint(x: x - 4, y: ground - 1.3), rx: 1.0, ry: 1.0, angle: 0), RGB(0xF4EAD6), G.fx)
+                add(.ellipse(c: RigPoint(x: x + 2.4, y: ground - 2.0), rx: 3.0, ry: 2.2, angle: -0.2), RGB(0xB5562C), G.fx)
             case .flyingSquirrel:
                 let c = RigPoint(x: x + 1, y: ground - 2.2)
                 add(.ellipse(c: c, rx: 1.8, ry: 2.2, angle: 0), RGB(0xC08A4A), G.fx)
