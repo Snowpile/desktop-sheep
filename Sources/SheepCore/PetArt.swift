@@ -209,7 +209,7 @@ public enum PetArt {
         case .chaseCursor, .fetchTreat: return 14
         case .hunt: return 14
         case .devour: return 5
-        case .eaten: return 1
+        case .eaten: return 5
         }
     }
 
@@ -258,9 +258,23 @@ public enum PetArt {
         case .ride: return sitFrames.map { var p = $0; p.shadow = false; p.eyes = $0.earUp ? .happy : .open; return p }
         case .hunt: return runFrames.map { var p = $0; p.mouthOpen = true; p.earUp = true; p.headDY += 1; return p }
         case .devour: return (0..<4).map { i in make { $0.mouthOpen = i % 2 == 0; $0.eyes = i == 3 ? .happy : .closed; $0.headDY = i % 2; $0.tailDY = -1 } }
-        case .eaten: return [Pose()] // not shown; the app hides the window meanwhile
+        case .eaten: return gulpFrames
         }
     }
+
+    /// Kicking in the tiger's mouth while shrinking into it (then the app hides the pet).
+    static let gulpFrames: [Pose] = (0..<12).map { f in
+        make {
+            $0.legs = .dangling(wiggle: f % 2 == 0 ? -1 : 1)
+            $0.eyes = .wide
+            $0.mouthOpen = true
+            $0.shadow = false
+            $0.finale = .gulp(f)
+        }
+    }
+    public static let gulpSeconds = Double(gulpFrames.count) / framesPerSecond(.eaten)
+    /// Sprite point the gulp shrinks towards: the back of the body, which is in the tiger's mouth.
+    static let gulpAnchor = (x: 22.0, y: 56.0)
 
     /// The pose to show `time` seconds into a behavior. `phase` (0..<1) desynchronizes
     /// blinking between pets.
@@ -270,7 +284,7 @@ public enum PetArt {
         let fps = behavior == .finale ? finaleFramesPerSecond(finale) : framesPerSecond(behavior)
         let index = Int(max(time, 0) * fps)
         // Countdowns and finales play once and hold their last frame.
-        let once = behavior == .finale || behavior == .countdown
+        let once = behavior == .finale || behavior == .countdown || behavior == .eaten
         var pose = all[once ? min(index, all.count - 1) : index % all.count]
         if pose.eyes == .open && isBlinking(time: time, phase: phase) { pose.eyes = .closed }
         return pose

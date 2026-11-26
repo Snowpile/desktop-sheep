@@ -95,7 +95,7 @@ public enum Social {
                 if d < hw * 1.1 {
                     // Caught! Gulp.
                     let j = pets.firstIndex { $0.id == partner.id }!
-                    pets[j].beEaten(rng: &rng)
+                    pets[j].beEaten(by: pet, rng: &rng)
                     pet.partnerID = nil
                     pet.setBehavior(.devour, duration: Pet.durationRange(for: .devour).lowerBound)
                 }

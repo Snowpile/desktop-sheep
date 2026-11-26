@@ -309,15 +309,24 @@ public struct Pet: Sendable {
         if timeInBehavior >= behaviorDuration || y > top + 20 { exit = .finale }
     }
 
-    /// Gulped by a tiger: gone from view until it arrives again in a few seconds.
-    mutating func beEaten<R: RandomNumberGenerator>(rng: inout R) {
+    /// Caught by a tiger: dangles from its mouth while being gulped down, then is gone from
+    /// view until it arrives again a few seconds later.
+    mutating func beEaten<R: RandomNumberGenerator>(by tiger: Pet, rng: inout R) {
         partnerID = nil
         ridingID = nil
         climb = nil
         vx = 0
         vy = 0
+        // Lifted off the ground, facing away, with its back end in the tiger's mouth (see `PetArt.gulpAnchor`).
+        let k = config.height / Double(PetArt.height)
+        facing = tiger.facing
+        x = tiger.x + tiger.facing.sign * 36 * k
+        y = tiger.y + 10 * k
         setBehavior(.eaten, duration: Double.random(in: Self.durationRange(for: .eaten), using: &rng))
     }
+
+    /// Swallowed and out of sight (after the gulp, until it comes back).
+    public var isAway: Bool { behavior == .eaten && timeInBehavior >= PetArt.gulpSeconds }
 
     // MARK: - Dragging
 

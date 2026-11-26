@@ -38,14 +38,15 @@ final class PetController {
     var pose: Pose { sheep.pose }
 
     func render() {
-        // An eaten pet is away until it arrives again.
-        let away = sheep.behavior == .eaten
+        // A swallowed pet is away until it arrives again.
+        let away = sheep.isAway
         if away == window.isVisible { away ? window.orderOut(nil) : window.orderFrontRegardless() }
         let size = Sprites.shared.size
         let origin = sheep.spriteOrigin(width: size.width, height: size.height)
         window.setFrameOrigin(CGPoint(x: origin.x.rounded(), y: origin.y.rounded()))
-        // Napping on the menu bar needs to be above it.
-        let level: NSWindow.Level = sheep.behavior == .menuNap ? .statusBar : .floating
+        // Napping on the menu bar needs to be above it; a pet being gulped goes behind the tiger's head.
+        let level: NSWindow.Level = sheep.behavior == .menuNap ? .statusBar
+            : sheep.behavior == .eaten ? NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue - 1) : .floating
         if window.level != level { window.level = level }
         updatePeekMask(originX: origin.x.rounded(), width: size.width, height: size.height)
         view.layer?.contents = Sprites.shared.image(for: pose, animal: sheep.animal, facing: sheep.facing)

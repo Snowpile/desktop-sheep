@@ -203,6 +203,10 @@ private func pet(_ x: Double, _ behavior: Behavior = .walk, facing: Facing = .ri
         simulate(&pets, in: world, seconds: 600) { $0[1].behavior == .eaten }
         #expect(pets[1].behavior == .eaten)
         #expect(pets[0].behavior == .devour)
+        // Dangling from the tiger's mouth while it is gulped down, then out of sight.
+        #expect(!pets[1].isAway && abs(pets[1].x - pets[0].x) < 60)
+        simulate(&pets, in: world, seconds: PetArt.gulpSeconds + 0.1)
+        #expect(pets[1].isAway)
         simulate(&pets, in: world, seconds: 20) { $0[1].behavior != .eaten }
         #expect(pets[1].behavior != .eaten)
     }

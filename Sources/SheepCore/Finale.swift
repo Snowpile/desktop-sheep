@@ -50,6 +50,8 @@ extension Pose {
         case balloons(Int)
         case beam(Int)
         case shrink(Int)
+        /// Being swallowed by a tiger: shrinking into its mouth.
+        case gulp(Int)
     }
 }
 
@@ -170,6 +172,8 @@ extension PetArt {
             if cut > 0 { c.clearSolid { x, y in (x * 3 + y * 5) % 10 < cut } }
         case let .shrink(f):
             c.shrink(scale: max(1 - Double(f) / 11, 0), aroundX: Double(width) / 2, bottom: Double(groundRow))
+        case let .gulp(f):
+            c.shrink(scale: max(1 - Double(f) / 12, 0.08), aroundX: gulpAnchor.x, bottom: gulpAnchor.y)
         default:
             break
         }
