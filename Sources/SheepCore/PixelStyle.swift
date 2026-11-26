@@ -33,7 +33,7 @@ public enum PixelStyle {
 
     public static func isFlatDecal(_ part: Part) -> Bool {
         switch part.shape {
-        case .line: return true
+        case .line, .pixel: return true
         case let .ellipse(_, rx, ry, _): return rx * ry < 3.5
         case let .capsule(a, b, ra, rb): return (b - a).length * (ra + rb) < 3
         case .triangle: return false
@@ -52,6 +52,7 @@ public enum PixelStyle {
         case let .capsule(a, b, ra, rb): include(a, ra); include(b, rb)
         case let .triangle(a, b, c, r): include(a, r); include(b, r); include(c, r)
         case let .line(points, w): points.forEach { include($0, w / 2 + 1) }
+        case let .pixel(x, y): include(RigPoint(x: Double(x) + 0.5, y: Double(y) + 0.5), 0.5)
         }
         return (max(Int(minX) - 1, 0), max(Int(minY) - 1, 0), min(Int(maxX) + 1, size - 1), min(Int(maxY) + 1, size - 1))
     }

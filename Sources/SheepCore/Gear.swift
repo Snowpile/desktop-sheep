@@ -11,9 +11,7 @@ extension PetArt {
             drawFlameTrail(&c, frame: frame)
         case let .jetpack(frame):
             drawJetpack(&c, frame: frame)
-        case let .dirt(frame):
-            drawDirt(&c, frame: frame)
-        case .none, .impact, .countdown, .hearts, .butterfly, .scuffle, .grip, .alert:
+        case .none, .impact, .countdown, .hearts, .butterfly, .scuffle, .grip, .alert, .dirt:
             break
         }
     }
@@ -27,6 +25,7 @@ extension PetArt {
         case let .butterfly(f): drawButterfly(&c, frame: f)
         case let .scuffle(f): drawScuffle(&c, frame: f)
         case .alert: drawAlert(&c)
+        case let .dirt(f): drawDirt(&c, frame: f)
         default: break
         }
     }
@@ -36,53 +35,88 @@ extension PetArt {
                 (x + 3, y + 1), (x, y + 2), (x + 1, y + 2), (x + 2, y + 2), (x + 1, y + 3)], color)
     }
 
+    /// Hearts rising from between the two pets, red with a pink shine.
     private static func drawHearts(_ c: inout PixelCanvas, frame f: Int) {
-        heart(&c, x: 30, y: 6 - f)
-        if f >= 2 { heart(&c, x: 35, y: 2 - (f - 2)) }
+        for (x, y) in [(33, -1 - f)] + (f >= 2 ? [(38, -4 - (f - 2))] : []) {
+            heart(&c, x: x, y: y, 21)
+            c[x, y] = 6
+        }
     }
 
     /// Dirt clods thrown back between the hind legs, and a growing mound in front.
     private static func drawDirt(_ c: inout PixelCanvas, frame f: Int) {
-        let clods = [(-1, 24), (-3, 20), (-5, 17), (-2, 15), (-6, 22)]
-        for (i, (x, y)) in clods.enumerated() where (i + f) % 2 == 0 {
-            c.fill(x: x - f % 2, y: y - f % 3, width: 2, height: 2, i % 2 == 0 ? 35 : 36)
+        // Clods spray up from the front paws and arc back over the pet, further along every frame.
+        for i in 0..<5 {
+            let t = Double((f + i) % 5) / 4 // 0 = leaving the paws, 1 = landing behind
+            let x = 30 - Int(t * 34), y = ground - 3 - Int(sin(t * .pi) * 30)
+            let big = i % 2 == 0
+            c.fill(x: x, y: y, width: big ? 2 : 1, height: big ? 2 : 1, big ? 36 : 35)
         }
-        c.fill(x: 29, y: ground - 1, width: 6, height: 2, 36)
-        c.fill(x: 30, y: ground - 2, width: 4, height: 1, 35)
+        // A dark hole under the front paws with a mound piling up beside it.
+        c.fill(x: 29, y: ground, width: 7, height: 1, 36)
+        let pile = 2 + f % 2
+        c.ellipse(cx: 37, cy: ground, rx: 3, ry: pile, 35)
+        c.fill(x: 36, y: ground - pile, width: 2, height: 1, 36)
     }
 
     /// A butterfly fluttering just ahead of the pet's nose.
+    /// A butterfly looping just ahead of and above the pet's nose.
     private static func drawButterfly(_ c: inout PixelCanvas, frame f: Int) {
-        let bob = [0, -2, -3, -2, 0, 1, 2, 1][f % 8]
-        let x = 38 + (f % 4 < 2 ? 0 : 1), y = 6 + bob
-        let open = f % 2 == 0
-        c.fill(x: x, y: y, width: 1, height: 3, 1)
-        if open {
-            c.fill(x: x - 3, y: y - 1, width: 3, height: 2, 22)
-            c.fill(x: x + 1, y: y - 1, width: 3, height: 2, 22)
-            c.plot([(x - 2, y + 1), (x - 1, y + 2), (x + 2, y + 1), (x + 1, y + 2)], 26)
+        let path = [(36, 6), (38, 4), (40, 3), (41, 5), (40, 7), (38, 8), (36, 9), (35, 7)]
+        let (x, y) = path[f % path.count]
+        // Body and antennae.
+        c.fill(x: x, y: y - 1, width: 1, height: 4, 1)
+        c.plot([(x - 1, y - 3), (x + 1, y - 3), (x - 1, y - 2), (x + 1, y - 2)].enumerated().filter { $0.offset < 2 || f % 2 == 0 }.map(\.element), 1)
+        if f % 2 == 0 {
+            // Wings open: big orange forewings with a yellow spot, small hindwings.
+            for side in [-1, 1] {
+                let near = side < 0 ? x - 3 : x + 1
+                c.fill(x: near, y: y - 2, width: 3, height: 3, 22)
+                c.plot([(side < 0 ? x - 3 : x + 3, y - 2)], 28)
+                c[side < 0 ? x - 2 : x + 2, y - 1] = 26
+                c.fill(x: side < 0 ? x - 2 : x + 1, y: y + 1, width: 2, height: 2, 28)
+            }
         } else {
-            c.fill(x: x - 1, y: y - 2, width: 1, height: 3, 22)
-            c.fill(x: x + 1, y: y - 2, width: 1, height: 3, 22)
+            // Wings folded up together.
+            c.fill(x: x - 2, y: y - 3, width: 2, height: 3, 22)
+            c.fill(x: x + 1, y: y - 3, width: 2, height: 3, 22)
+            c.plot([(x - 1, y), (x + 1, y)], 28)
         }
     }
 
     /// A tumbling dust cloud with stars in front of the face.
     private static func drawScuffle(_ c: inout PixelCanvas, frame f: Int) {
-        c.disc(cx: 38, cy: 24 - f % 2, r: 3 + f % 2, 30)
-        c.disc(cx: 39, cy: 24 - f % 2, r: 2 + f % 2, 29)
+        // A cartoon dust cloud of overlapping puffs that churns from frame to frame.
+        let puffs = [(35, 24, 3), (40, 22, 4), (44, 25, 3), (39, 27, 3)]
+        var cloud = PixelCanvas(width: c.width, height: c.height)
+        cloud.originX = c.originX; cloud.originY = c.originY
+        for (i, (x, y, r)) in puffs.enumerated() {
+            cloud.disc(cx: x + (i + f) % 2, cy: y - (i + f + 1) % 2, r: r, 29)
+        }
+        for y in -20..<40 { for x in -10..<50 where cloud[x, y] != 0 {
+            let edge = [cloud[x - 1, y], cloud[x + 1, y], cloud[x, y - 1], cloud[x, y + 1]].contains(0)
+            let lower = cloud[x, y + 2] == 0
+            c[x, y] = edge ? 30 : (lower ? 29 : 5)
+        } }
+        // Stars and a flailing paw popping out of the cloud.
         let star = [(0, -1), (-1, 0), (0, 0), (1, 0), (0, 1)]
-        let spots = [(36, 18), (41, 20), (38, 29)]
-        let s = spots[f % 3]
+        let s = [(34, 18), (45, 19), (41, 30)][f % 3]
         c.plot(star.map { ($0.0 + s.0, $0.1 + s.1) }, 26)
+        let paw = [(46, 21), (33, 27), (43, 17), (37, 30)][f % 4]
+        c.fill(x: paw.0, y: paw.1, width: 2, height: 2, 1)
     }
 
     /// A red "!" over the head.
+    /// A small red "!" over the head with shock lines bursting out around it.
     private static func drawAlert(_ c: inout PixelCanvas) {
-        c.fill(x: 30, y: 0, width: 4, height: 9, 1)
-        c.fill(x: 30, y: 10, width: 4, height: 4, 1)
-        c.fill(x: 31, y: 1, width: 2, height: 7, 21)
-        c.fill(x: 31, y: 11, width: 2, height: 2, 21)
+        let top = -9
+        c.fill(x: 31, y: top, width: 3, height: 7, 1)
+        c.fill(x: 31, y: top + 8, width: 3, height: 3, 1)
+        c.fill(x: 32, y: top + 1, width: 1, height: 5, 21)
+        c[32, top + 9] = 21
+        for (from, to) in [((27, top + 2), (28, top + 4)), ((37, top + 2), (36, top + 4)), ((26, top + 7), (28, top + 7)), ((38, top + 7), (36, top + 7))] {
+            line(&c, from: from, to: to, 1)
+        }
     }
 
 

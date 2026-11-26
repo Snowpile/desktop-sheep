@@ -55,6 +55,8 @@ public enum Shape: Sendable {
     case triangle(RigPoint, RigPoint, RigPoint, round: Double)
     /// Open stroke (whiskers, closed eyes, sound marks).
     case line([RigPoint], width: Double)
+    /// One whole pixel at integer coordinates (hand-placed details such as eyes).
+    case pixel(x: Int, y: Int)
 
     /// Signed distance (negative inside).
     public func distance(_ p: RigPoint) -> Double {
@@ -75,6 +77,8 @@ public enum Shape: Sendable {
                 best = min(best, Shape.capsule(a: u, b: v, ra: width / 2, rb: width / 2).distance(p))
             }
             return best
+        case let .pixel(x, y):
+            return max(Double(x) - p.x, p.x - Double(x + 1), Double(y) - p.y, p.y - Double(y + 1))
         }
     }
 
@@ -95,7 +99,7 @@ public enum Shape: Sendable {
             let cx = (a.x + b.x + c.x) / 3, cy = (a.y + b.y + c.y) / 3
             let size = max(abs(a.x - cx), abs(b.x - cx), abs(c.x - cx), abs(a.y - cy), abs(b.y - cy), abs(c.y - cy))
             return ((p.x - cx) / size, (p.y - cy) / size)
-        case .line:
+        case .line, .pixel:
             return (0, 0)
         }
     }
@@ -106,6 +110,7 @@ public enum Shape: Sendable {
         case let .capsule(a, b, _, _): return (a + b) * 0.5
         case let .triangle(a, b, c, _): return RigPoint(x: (a.x + b.x + c.x) / 3, y: (a.y + b.y + c.y) / 3)
         case let .line(points, _): return points[points.count / 2]
+        case let .pixel(x, y): return RigPoint(x: Double(x) + 0.5, y: Double(y) + 0.5)
         }
     }
 }

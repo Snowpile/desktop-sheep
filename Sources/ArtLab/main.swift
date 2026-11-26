@@ -181,3 +181,73 @@ do {
     }
     save(ctx, "seasonal.png")
 }
+
+// Head close-ups: the 28x28 pixels around each head in key poses, 10x.
+do {
+    let poses = [previewPoses[0], previewPoses[3], previewPoses[4], previewPoses[5], previewPoses[6], previewPoses[7], previewPoses[8]]
+    let crop = 28, z = 10.0, cellPx = Double(crop) * z
+    let w = Int(rowLabelWidth + cellPx * Double(poses.count)), h = Int(labelHeight * 2 + cellPx * Double(Animal.allCases.count))
+    let ctx = makeContext(width: w, height: h)
+    ctx.setFillColor(VectorStyle.cg(background))
+    ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+    drawText("Head close-ups (style A, shown 10x)", at: CGPoint(x: 12, y: 6), size: 18, in: ctx, bold: true)
+    for (c, pose) in poses.enumerated() {
+        drawText(pose.name, at: CGPoint(x: rowLabelWidth + Double(c) * cellPx + 8, y: labelHeight + 4), size: 13, in: ctx)
+    }
+    for (r, species) in Animal.allCases.enumerated() {
+        let y = labelHeight * 2 + Double(r) * cellPx
+        drawText(species.rawValue, at: CGPoint(x: 12, y: y + cellPx / 2 - 10), size: 16, in: ctx)
+        for (c, pose) in poses.enumerated() {
+            let img = PixelStyle.render(buildParts(species, pose))
+            let hc = buildHeadCenter(species, pose)
+            let x0 = max(0, min(64 - crop, Int(hc.x) - crop / 2)), y0 = max(0, min(64 - crop, Int(hc.y) - crop / 2 - 2))
+            let ox = rowLabelWidth + Double(c) * cellPx
+            ctx.setFillColor(VectorStyle.cg((r + c) % 2 == 0 ? RGB(0xE9E6DF) : RGB(0xEFEDE7)))
+            ctx.fill(CGRect(x: ox, y: y, width: cellPx, height: cellPx))
+            for py in 0..<crop { for px in 0..<crop {
+                guard let col = img[x0 + px, y0 + py] else { continue }
+                ctx.setFillColor(VectorStyle.cg(col))
+                ctx.fill(CGRect(x: ox + Double(px) * z, y: y + Double(py) * z, width: z, height: z))
+            } }
+        }
+    }
+    save(ctx, "heads.png")
+}
+
+// Activities up close: four frames each for a sheep and a cat, 4x.
+do {
+    let picks: [(String, Behavior)] = [
+        ("dig", .dig), ("butterfly", .butterfly), ("nuzzle", .nuzzle), ("play-fight", .playFight),
+        ("startled", .startled), ("climb", .climb), ("hang", .hang), ("tumble", .tumble),
+    ]
+    let animals: [Animal] = [.sheep, .cat], frameCount = 4
+    let z = 4.0, cellPx = Double(PetArt.width) * z
+    let cols = animals.count * frameCount
+    let w = Int(rowLabelWidth + cellPx * Double(cols)), h = Int(labelHeight * 2 + cellPx * Double(picks.count))
+    let ctx = makeContext(width: w, height: h)
+    ctx.setFillColor(VectorStyle.cg(background))
+    ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+    drawText("Activities (four frames each, shown 4x)", at: CGPoint(x: 12, y: 6), size: 18, in: ctx, bold: true)
+    for (r, pick) in picks.enumerated() {
+        let y = labelHeight * 2 + Double(r) * cellPx
+        drawText(pick.0, at: CGPoint(x: 12, y: y + cellPx / 2 - 10), size: 16, in: ctx)
+        for (a, animal) in animals.enumerated() {
+            let frames = PetArt.frames(for: pick.1, animal: animal)
+            for f in 0..<frameCount {
+                let c = a * frameCount + f
+                let canvas = PetArt.render(frames[(f * max(frames.count / frameCount, 1)) % frames.count], animal: animal)
+                let ox = rowLabelWidth + Double(c) * cellPx
+                ctx.setFillColor(VectorStyle.cg((r + c) % 2 == 0 ? RGB(0xE9E6DF) : RGB(0xEFEDE7)))
+                ctx.fill(CGRect(x: ox, y: y, width: cellPx, height: cellPx))
+                for py in 0..<canvas.height { for px in 0..<canvas.width {
+                    let v = canvas[px, py]
+                    guard v & 0xFF != 0 else { continue }
+                    ctx.setFillColor(CGColor(srgbRed: CGFloat(v >> 24 & 0xFF) / 255, green: CGFloat(v >> 16 & 0xFF) / 255,
+                                             blue: CGFloat(v >> 8 & 0xFF) / 255, alpha: CGFloat(v & 0xFF) / 255))
+                    ctx.fill(CGRect(x: ox + Double(px) * z, y: y + Double(py) * z, width: z, height: z))
+                } }
+            }
+        }
+    }
+    save(ctx, "activities.png")
+}

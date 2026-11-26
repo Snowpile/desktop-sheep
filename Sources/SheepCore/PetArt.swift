@@ -415,7 +415,9 @@ public enum PetArt {
             $0.legs = .dangling(wiggle: w)
             $0.eyes = .wide
             $0.earUp = true
-            $0.headDY = -2
+            // Head tucked below the paws so they show above it, gripping the edge.
+            $0.headDY = 3
+            $0.headDX = 1
             $0.bodyDY = 1
             $0.tailDY = w > 0 ? -1 : 0
             $0.shadow = false
@@ -440,7 +442,7 @@ public enum PetArt {
     private static let digFrames: [Pose] = (0..<4).map { i in
         make {
             $0.legs = .standing(dx: [0, 0, i % 2 == 0 ? 1 : -1, i % 2 == 0 ? -1 : 1], lifted: [false, false, i % 2 == 0, i % 2 == 1])
-            $0.headDY = 5
+            $0.headDY = 7
             $0.headDX = 1
             $0.bodyDY = 1
             $0.eyes = .happy

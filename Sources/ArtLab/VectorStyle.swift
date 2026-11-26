@@ -41,6 +41,9 @@ enum VectorStyle {
                     pts.append(cur + RigPoint(x: cos(t) * r, y: sin(t) * r))
                 }
             }
+        case let .pixel(x, y):
+            pts = [RigPoint(x: Double(x), y: Double(y)), RigPoint(x: Double(x + 1), y: Double(y)),
+                   RigPoint(x: Double(x + 1), y: Double(y + 1)), RigPoint(x: Double(x), y: Double(y + 1))]
         case .line:
             return []
         }
