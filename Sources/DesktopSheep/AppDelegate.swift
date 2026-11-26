@@ -165,6 +165,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case .impact, .tumble: sounds.play(.thud, now: now)
             case .startled: sounds.play(.pop, now: now)
             case .finale: sounds.play(.finale(pet.finaleStyle), now: now)
+            case .hunt: sounds.play(.roar, now: now)
+            case .devour: sounds.play(.chomp, now: now)
             default: break
             }
         }

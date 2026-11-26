@@ -196,6 +196,35 @@ private func pet(_ x: Double, _ behavior: Behavior = .walk, facing: Facing = .ri
         #expect(pets[0].facing == .right && pets[1].facing == .left)
     }
 
+    @Test func tigerHuntsEatsAndThePetComesBack() {
+        var tiger = pet(400, .stand, id: 1)
+        tiger.animal = .tiger
+        var pets = [tiger, pet(700, .stand, id: 2)]
+        simulate(&pets, in: world, seconds: 600) { $0[1].behavior == .eaten }
+        #expect(pets[1].behavior == .eaten)
+        #expect(pets[0].behavior == .devour)
+        // Dangling from the tiger's mouth while it is gulped down, then out of sight.
+        #expect(!pets[1].isAway && abs(pets[1].x - pets[0].x) < 60)
+        simulate(&pets, in: world, seconds: PetArt.gulpSeconds + 0.1)
+        #expect(pets[1].isAway)
+        simulate(&pets, in: world, seconds: 20) { $0[1].behavior != .eaten }
+        #expect(pets[1].behavior != .eaten)
+    }
+
+    @Test func tigersDontHuntTigersOrWhenDisabled() {
+        var config = PetConfig()
+        config.enabledBehaviors.remove(.hunt)
+        var tiger = pet(400, .stand, id: 1), other = pet(700, .stand, id: 3)
+        tiger.animal = .tiger
+        other.animal = .tiger
+        var noHunting = Pet(x: 900, y: 0, animal: .tiger, behavior: .stand, duration: 1000, config: config)
+        noHunting.id = 4
+        var pets = [tiger, other, noHunting]
+        var seen = Set<Behavior>()
+        simulate(&pets, in: world, seconds: 300) { pets in pets.forEach { seen.insert($0.behavior) }; return false }
+        #expect(!seen.contains(.hunt) && !seen.contains(.eaten))
+    }
+
     @Test func disabledSocialBehaviorsNeverHappen() {
         var settings = PetSettings()
         for b in [Behavior.nuzzle, .chase, .follow, .playFight, .ride, .yawn] { settings.setEnabled(b, false) }

@@ -11,7 +11,7 @@ extension PetArt {
             drawFlameTrail(&c, frame: frame)
         case let .jetpack(frame):
             drawJetpack(&c, frame: frame)
-        case .none, .impact, .countdown, .hearts, .butterfly, .scuffle, .grip, .alert, .dirt:
+        case .none, .impact, .countdown, .hearts, .butterfly, .scuffle, .grip, .alert, .dirt, .gore:
             break
         }
     }
@@ -26,8 +26,45 @@ extension PetArt {
         case let .scuffle(f): drawScuffle(&c, frame: f)
         case .alert: drawAlert(&c)
         case let .dirt(f): drawDirt(&c, frame: f)
+        case let .gore(f): drawGore(&c, frame: f)
         default: break
         }
+    }
+
+    /// Red drips off the tiger's chin while it chomps; afterwards the leftovers: a splat and
+    /// a little skeleton in front of its paws.
+    private static func drawGore(_ c: inout PixelCanvas, frame f: Int) {
+        if f < gulpFrames.count {
+            for (i, x) in [32, 34, 35].enumerated() {
+                let len = 1 + (f + i * 2) % 4
+                c.fill(x: x, y: 15, width: 1, height: len, 38)
+                c[x, 15 + len] = 39
+            }
+            // Flecks flying off the bites.
+            for k in 0..<3 {
+                let t = (f + k * 3) % 6
+                c[36 + t, 11 - t / 2 + k] = k == 1 ? 39 : 38
+            }
+            return
+        }
+        // A splat on the ground with the bones lying in it.
+        c.fill(x: 31, y: ground, width: 13, height: 1, 38)
+        c.fill(x: 33, y: ground - 1, width: 9, height: 1, 38)
+        c[30, ground] = 39
+        c[44, ground] = 39
+        // Spine, ribs and a little round skull, outlined so they read against the splat.
+        var bones = (33...40).map { ($0, ground - 3) }
+        for x in [34, 36, 38] { bones += (ground - 5...ground - 1).map { (x, $0) } }
+        for y in ground - 5...ground - 3 { bones += (41...43).map { ($0, y) } }
+        bones += [(41, ground - 2), (42, ground - 2)]
+        let bone = Set(bones.map { [$0.0, $0.1] })
+        for (x, y) in bones { for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] where !bone.contains([x + dx, y + dy]) {
+            c[x + dx, y + dy] = 1
+        } }
+        c.plot(bones, 24)
+        c[42, ground - 4] = 1
+        // Licking its lips: a pink tongue on alternate frames.
+        if f % 2 == 1 { c.fill(x: 33, y: 15, width: 2, height: 2, 6) }
     }
 
     static func heart(_ c: inout PixelCanvas, x: Int, y: Int, _ color: UInt8 = 6) {

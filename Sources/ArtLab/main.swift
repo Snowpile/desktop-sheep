@@ -277,3 +277,31 @@ do {
     }
     save(ctx, "explode.png")
 }
+
+// A tiger gulping down a sheep: both sprites placed the way the app places them, 4x.
+do {
+    let tigerFrames = PetArt.frames(for: .devour, animal: .tiger), gulp = PetArt.frames(for: .eaten, animal: .sheep)
+    let z = 4.0, cellW = 130.0 * z, cellH = Double(PetArt.height) * z, shown = [0, 2, 4, 6, 8, 10, 13, 16]
+    let w = Int(cellW * Double(shown.count)), h = Int(labelHeight + cellH)
+    let ctx = makeContext(width: w, height: h)
+    ctx.setFillColor(VectorStyle.cg(background))
+    ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+    drawText("Tiger eats a sheep (shown 4x)", at: CGPoint(x: 12, y: 6), size: 18, in: ctx, bold: true)
+    for (c, f) in shown.enumerated() {
+        let ox = Double(c) * cellW, oy = labelHeight
+        ctx.setFillColor(VectorStyle.cg(c % 2 == 0 ? RGB(0xE9E6DF) : RGB(0xEFEDE7)))
+        ctx.fill(CGRect(x: ox, y: oy, width: cellW, height: cellH))
+        // Same offsets as `Pet.beEaten`: 36 right of the tiger and 10 up.
+        let prey = f < gulp.count ? [(PetArt.render(gulp[f], animal: .sheep), 36, -10)] : []
+        for (canvas, dx, dy) in prey + [(PetArt.render(tigerFrames[f], animal: .tiger), 0, 0)] {
+            for py in 0..<canvas.height { for px in 0..<canvas.width {
+                let v = canvas[px, py]
+                guard v & 0xFF != 0 else { continue }
+                ctx.setFillColor(CGColor(srgbRed: CGFloat(v >> 24 & 0xFF) / 255, green: CGFloat(v >> 16 & 0xFF) / 255,
+                                         blue: CGFloat(v >> 8 & 0xFF) / 255, alpha: CGFloat(v & 0xFF) / 255))
+                ctx.fill(CGRect(x: ox + Double(px + dx) * z, y: oy + Double(py + dy) * z, width: z, height: z))
+            } }
+        }
+    }
+    save(ctx, "tiger-eats.png")
+}

@@ -50,6 +50,8 @@ extension Pose {
         case balloons(Int)
         case beam(Int)
         case shrink(Int)
+        /// Being swallowed by a tiger: shrinking into its mouth.
+        case gulp(Int)
     }
 }
 
@@ -141,6 +143,7 @@ extension PetArt {
         case let .poof(f): drawPoof(&c, frame: f)
         case let .beam(f): drawBeam(&c, frame: f, front: true)
         case let .shrink(f) where f >= 9: drawSparkle(&c, frame: f - 9)
+        case let .gulp(f): drawSpatter(&c, frame: f)
         default: break
         }
     }
@@ -170,6 +173,23 @@ extension PetArt {
             if cut > 0 { c.clearSolid { x, y in (x * 3 + y * 5) % 10 < cut } }
         case let .shrink(f):
             c.shrink(scale: max(1 - Double(f) / 11, 0), aroundX: Double(width) / 2, bottom: Double(groundRow))
+        case let .gulp(f):
+            let s = max(1 - Double(f) / 12, 0.08)
+            c.shrink(scale: s, aroundX: gulpAnchor.x, bottom: gulpAnchor.y)
+            // Bites taken out of the back, more each chomp, with raw red edges.
+            let bites = (0..<min(1 + f / 2, 4)).map { k in
+                (x: gulpAnchor.x + Double(4 + k * 7) * s, y: gulpAnchor.y - 10 * s, r: 2 + 3 * s)
+            }
+            let bitten = { (x: Int, y: Int, pad: Double) in
+                bites.contains { hypot(Double(x) + 0.5 - $0.x, Double(y) + 0.5 - $0.y) < $0.r + pad }
+            }
+            c.clearSolid { x, y in bitten(x, y, 0) }
+            let blood = ColorCanvas.pack(paletteRGB(38)), bright = ColorCanvas.pack(paletteRGB(39))
+            let before = c
+            c.recolorSolid { x, y in
+                guard bitten(x, y, 1.6) else { return before[x, y] }
+                return (x + y) % 3 == 0 ? bright : blood
+            }
         default:
             break
         }
@@ -342,6 +362,21 @@ extension PetArt {
         }
         for (x, y, _) in fill { for dy in -1...1 { for dx in -1...1 { c.blend(x + dx, y + dy, paletteRGB(outline)) } } }
         for (x, y, i) in fill { c.blend(x, y, paletteRGB(i)) }
+    }
+
+    /// Red droplets and tufts of fur flying off the back end in the tiger's mouth.
+    private static func drawSpatter(_ c: inout PixelCanvas, frame f: Int) {
+        let mouth = (x: 9.0, y: 34.0) // absolute layer coordinates of `gulpAnchor`
+        for k in 0..<7 {
+            let t = Double((f + k * 2) % 6) + 0.5
+            let vx = (Double(k % 4) - 1.5) * 1.1, vy = -2.2 - Double(k % 3) * 0.5
+            let x = Int(mouth.x + vx * t), y = Int(mouth.y + vy * t + 0.3 * t * t)
+            if k % 3 == 2 {
+                c.pixelsFill(x: x, y: y, size: 2, 29) // a tuft of fur
+            } else {
+                c.pixelsSet(x, y, k % 2 == 0 ? 38 : 39)
+            }
+        }
     }
 
     private static func drawPoof(_ c: inout PixelCanvas, frame f: Int) {

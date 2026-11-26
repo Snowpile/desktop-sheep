@@ -2,7 +2,7 @@ import Foundation
 
 /// Short original sound effects, synthesized from oscillators and noise (no recordings).
 public enum SoundEffect: String, CaseIterable, Sendable {
-    case bleat, meow, bark, squeak, chirp, thud, poof, boom, sizzle, pop, beam
+    case bleat, meow, bark, squeak, chirp, thud, poof, boom, sizzle, pop, beam, oink, honk, trumpet, chitter, roar, chomp
 
     /// The call sound for an animal.
     public static func call(for animal: Animal) -> SoundEffect {
@@ -12,6 +12,11 @@ public enum SoundEffect: String, CaseIterable, Sendable {
         case .dog: return .bark
         case .bunny: return .squeak
         case .redPanda: return .chirp
+        case .pig: return .oink
+        case .hippo: return .honk
+        case .elephant: return .trumpet
+        case .flyingSquirrel: return .chitter
+        case .tiger: return .roar
         }
     }
 
@@ -71,6 +76,60 @@ public enum Synth {
             for k in 0..<3 {
                 out += tone(seconds: 0.06, harmonics: [1, 0.3]) { t, d in (1300 + Double(k) * 120 + 600 * (t / d), envelope(t, d, attack: 0.004, release: 0.03)) }
                 out += Array(repeating: 0, count: Int(0.04 * sampleRate))
+            }
+        case .oink:
+            // Two short nasal grunts with a raspy edge.
+            out = []
+            for k in 0..<2 {
+                let grunt = tone(seconds: 0.15, harmonics: [1, 0.8, 0.7, 0.55, 0.45, 0.35, 0.25]) { t, d in
+                    (230 - Double(k) * 25 - 60 * (t / d), envelope(t, d, attack: 0.01, release: 0.07))
+                }
+                out += grunt.enumerated().map { i, s in s * 0.8 + white() * 0.2 * envelope(Double(i) / sampleRate, 0.15, attack: 0.01, release: 0.07) }
+                if k == 0 { out += Array(repeating: 0, count: Int(0.07 * sampleRate)) }
+            }
+        case .honk:
+            // A low, wobbly baby-hippo honk.
+            out = tone(seconds: 0.4, harmonics: [1, 0.75, 0.5, 0.3, 0.15]) { t, d in
+                (150 - 40 * (t / d) + sin(t * 2 * .pi * 9) * 10, envelope(t, d, attack: 0.02, release: 0.15))
+            }
+        case .trumpet:
+            // A brassy trumpet that swoops up and wavers.
+            out = tone(seconds: 0.7, harmonics: [1, 0.9, 0.8, 0.65, 0.5, 0.4, 0.3, 0.2]) { t, d in
+                let x = t / d
+                return (380 + 220 * min(x * 4, 1) - 60 * max(0, x - 0.6) + sin(t * 2 * .pi * 7) * 12,
+                        envelope(t, d, attack: 0.04, release: 0.25))
+            }
+        case .chitter:
+            // A fast run of tiny high squeaks.
+            out = []
+            for k in 0..<6 {
+                out += tone(seconds: 0.035, harmonics: [1, 0.4, 0.2]) { t, d in
+                    (2600 - Double(k % 2) * 400 - 500 * (t / d), envelope(t, d, attack: 0.003, release: 0.015))
+                }
+                out += Array(repeating: 0, count: Int(0.025 * sampleRate))
+            }
+        case .roar:
+            // A rough growl that swells into a roar and trails off.
+            var lp = 0.0
+            out = tone(seconds: 1.1, harmonics: [1, 0.9, 0.75, 0.6, 0.45, 0.3]) { t, d in
+                let x = t / d
+                return (110 + 70 * sin(min(x * 1.6, 1) * .pi) + sin(t * 2 * .pi * 23) * 6, envelope(t, d, attack: 0.15, release: 0.4))
+            }
+            out = out.enumerated().map { i, s in
+                lp += (white() - lp) * 0.2
+                return s * 0.7 + lp * 0.9 * envelope(Double(i) / sampleRate, 1.1, attack: 0.15, release: 0.4)
+            }
+        case .chomp:
+            // Three quick crunchy bites.
+            var lp = 0.0
+            out = []
+            for _ in 0..<3 {
+                out += (0..<Int(0.09 * sampleRate)).map { i in
+                    let t = Double(i) / sampleRate
+                    lp += (white() - lp) * 0.35
+                    return (lp + sin(2 * .pi * 180 * t) * 0.4) * envelope(t, 0.09, attack: 0.003, release: 0.06)
+                }
+                out += Array(repeating: 0, count: Int(0.08 * sampleRate))
             }
         case .thud:
             var lp = 0.0

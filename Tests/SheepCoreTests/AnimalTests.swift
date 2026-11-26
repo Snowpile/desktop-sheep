@@ -10,7 +10,7 @@ import Testing
                     let c = PetArt.render(pose, animal: animal)
                     #expect(!c.isBlank, "\(animal) \(behavior)")
                     // Something solid on the bottom row unless the pet is in the air.
-                    if pose.lift == 0 && pose.shadow && ![.run, .chase, .flee, .chaseCursor, .fetchTreat].contains(behavior) { // gallops have an airborne frame
+                    if pose.lift == 0 && pose.shadow && ![.run, .chase, .flee, .chaseCursor, .fetchTreat, .hunt].contains(behavior) { // gallops have an airborne frame
                         #expect((0..<c.width).contains { c.isSolid($0, PetArt.groundRow - 1) }, "\(animal) \(behavior)")
                     }
                 }

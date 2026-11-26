@@ -112,6 +112,8 @@ public struct Pose: Hashable, Sendable {
         case scuffle(Int)
         case grip
         case alert
+        /// A tiger's meal: dripping chin while it chomps, then bones and a splat on the ground.
+        case gore(Int)
     }
 
     public init() {}
@@ -167,6 +169,8 @@ public enum PetArt {
         (0x8A, 0x5A, 0x36, 255), // 35 dirt
         (0x5E, 0x3B, 0x22, 255), // 36 dark dirt
         (0xFF, 0xE0, 0x5A, 170), // 37 tractor beam edge (translucent)
+        (0x9E, 0x1B, 0x24, 255), // 38 blood
+        (0xD8, 0x2A, 0x36, 255), // 39 bright blood
     ]
 
     /// Fully opaque palette indices (used for hit testing; the shadow doesn't count).
@@ -207,6 +211,9 @@ public enum PetArt {
         case .peek: return 2
         case .menuNap: return 1.5
         case .chaseCursor, .fetchTreat: return 14
+        case .hunt: return 14
+        case .devour: return 5
+        case .eaten: return 5
         }
     }
 
@@ -253,8 +260,36 @@ public enum PetArt {
         case .peek: return (0..<4).map { i in make { $0.eyes = i == 2 ? .wide : .open; $0.earUp = i % 2 == 1; $0.headDY = -1 } }
         case .menuNap: return sleepFrames.map { var p = $0; p.shadow = false; return p }
         case .ride: return sitFrames.map { var p = $0; p.shadow = false; p.eyes = $0.earUp ? .happy : .open; return p }
+        case .hunt: return runFrames.map { var p = $0; p.mouthOpen = true; p.earUp = true; p.headDY += 1; return p }
+        case .devour: return devourFrames
+        case .eaten: return gulpFrames
         }
     }
+
+    /// Chomping (as long as the gulp), then licking its lips over a little pile of bones.
+    static let devourFrames: [Pose] = (0..<20).map { f in
+        make {
+            $0.mouthOpen = f % 2 == 0
+            $0.eyes = f < gulpFrames.count ? .closed : .happy
+            $0.headDY = f < gulpFrames.count ? f % 2 : 0
+            $0.tailDY = -1
+            $0.gear = .gore(f)
+        }
+    }
+
+    /// Kicking in the tiger's mouth while shrinking into it (then the app hides the pet).
+    static let gulpFrames: [Pose] = (0..<12).map { f in
+        make {
+            $0.legs = .dangling(wiggle: f % 2 == 0 ? -1 : 1)
+            $0.eyes = .wide
+            $0.mouthOpen = true
+            $0.shadow = false
+            $0.finale = .gulp(f)
+        }
+    }
+    public static let gulpSeconds = Double(gulpFrames.count) / framesPerSecond(.eaten)
+    /// Sprite point the gulp shrinks towards: the back of the body, which is in the tiger's mouth.
+    static let gulpAnchor = (x: 22.0, y: 56.0)
 
     /// The pose to show `time` seconds into a behavior. `phase` (0..<1) desynchronizes
     /// blinking between pets.
@@ -264,7 +299,7 @@ public enum PetArt {
         let fps = behavior == .finale ? finaleFramesPerSecond(finale) : framesPerSecond(behavior)
         let index = Int(max(time, 0) * fps)
         // Countdowns and finales play once and hold their last frame.
-        let once = behavior == .finale || behavior == .countdown
+        let once = behavior == .finale || behavior == .countdown || behavior == .eaten || behavior == .devour
         var pose = all[once ? min(index, all.count - 1) : index % all.count]
         if pose.eyes == .open && isBlinking(time: time, phase: phase) { pose.eyes = .closed }
         return pose
