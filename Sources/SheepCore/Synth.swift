@@ -87,12 +87,23 @@ public enum Synth {
                 return lp * 1.6 * envelope(t, 0.45, attack: 0.05, release: 0.3)
             }
         case .boom:
-            var lp = 0.0
-            out = (0..<Int(0.9 * sampleRate)).map { i in
+            // A fizzing fuse while the pet swells, then the bang: a sharp crack over a long rumble.
+            let fuse = Double(PetArt.swellFrames) / PetArt.finaleFramesPerSecond(.explode), bang = 0.88
+            var lp = 0.0, hp = 0.0, prev = 0.0
+            out = (0..<Int((fuse + bang) * sampleRate)).map { i in
                 let t = Double(i) / sampleRate
-                lp += (white() - lp) * 0.06
-                let rumble = sin(2 * .pi * (55 - 20 * t) * t)
-                return (lp * 1.4 + rumble * 0.6) * envelope(t, 0.9, attack: 0.004, release: 0.8)
+                let n = white()
+                if t < fuse {
+                    hp = 0.9 * (hp + n - prev)
+                    prev = n
+                    let whine = sin(2 * .pi * (600 + 900 * t / fuse) * t) * 0.15
+                    return (hp * 0.25 + whine) * (0.3 + 0.7 * t / fuse) * min(t / 0.02, 1)
+                }
+                let b = t - fuse
+                lp += (n - lp) * (0.03 + 0.25 * max(0, 1 - b / 0.08))
+                let rumble = sin(2 * .pi * (48 - 18 * b) * b) + 0.5 * sin(2 * .pi * 31 * b)
+                let crackle = b < 0.6 && i % 997 < 40 ? n * 0.5 : 0
+                return (lp * 1.8 + rumble * 0.55 + crackle) * envelope(b, bang, attack: 0.002, release: 0.8)
             }
         case .sizzle:
             var hp = 0.0, prev = 0.0

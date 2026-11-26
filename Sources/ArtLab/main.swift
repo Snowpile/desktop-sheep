@@ -251,3 +251,29 @@ do {
     }
     save(ctx, "activities.png")
 }
+
+// The explode finale, every frame, 4x.
+do {
+    let frames = PetArt.frames(for: .finale, finale: .explode), perRow = 13
+    let z = 4.0, cellPx = Double(PetArt.width) * z
+    let rows = (frames.count + perRow - 1) / perRow
+    let w = Int(cellPx * Double(perRow)), h = Int(labelHeight + cellPx * Double(rows))
+    let ctx = makeContext(width: w, height: h)
+    ctx.setFillColor(VectorStyle.cg(background))
+    ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+    drawText("Explode finale (every frame, shown 4x)", at: CGPoint(x: 12, y: 6), size: 18, in: ctx, bold: true)
+    for (i, pose) in frames.enumerated() {
+        let canvas = PetArt.render(pose, animal: .sheep)
+        let ox = Double(i % perRow) * cellPx, oy = labelHeight + Double(i / perRow) * cellPx
+        ctx.setFillColor(VectorStyle.cg(i % 2 == 0 ? RGB(0xE9E6DF) : RGB(0xEFEDE7)))
+        ctx.fill(CGRect(x: ox, y: oy, width: cellPx, height: cellPx))
+        for py in 0..<canvas.height { for px in 0..<canvas.width {
+            let v = canvas[px, py]
+            guard v & 0xFF != 0 else { continue }
+            ctx.setFillColor(CGColor(srgbRed: CGFloat(v >> 24 & 0xFF) / 255, green: CGFloat(v >> 16 & 0xFF) / 255,
+                                     blue: CGFloat(v >> 8 & 0xFF) / 255, alpha: CGFloat(v & 0xFF) / 255))
+            ctx.fill(CGRect(x: ox + Double(px) * z, y: oy + Double(py) * z, width: z, height: z))
+        } }
+    }
+    save(ctx, "explode.png")
+}

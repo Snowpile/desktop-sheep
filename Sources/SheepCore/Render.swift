@@ -60,13 +60,13 @@ public struct ColorCanvas: Equatable, Sendable {
         } }
     }
 
-    /// Scales down around a bottom-center point (nearest neighbor).
-    mutating func shrink(scale: Double, aroundX cx: Double, bottom: Double) {
+    /// Scales around a bottom-center point (nearest neighbor), then nudges sideways by `shift` pixels.
+    mutating func shrink(scale: Double, aroundX cx: Double, bottom: Double, shift: Int = 0) {
         let src = self
         pixels = Array(repeating: 0, count: width * height)
         guard scale > 0.05 else { return }
         for y in 0..<height { for x in 0..<width {
-            let sx = Int((cx + (Double(x) + 0.5 - cx) / scale).rounded(.down))
+            let sx = Int((cx + (Double(x - shift) + 0.5 - cx) / scale).rounded(.down))
             let sy = Int((bottom + (Double(y) + 0.5 - bottom) / scale).rounded(.down))
             pixels[y * width + x] = src[sx, sy]
         } }
@@ -129,6 +129,7 @@ extension PetArt {
         drawGearInFront(&front, pose.gear)
         drawFinaleFront(&front, pose.finale)
         composite(front, onto: &out)
+        if case let .blast(f) = pose.finale { drawBlast(&out, frame: f) }
 
         if pose.rotation % 4 != 0 {
             // Curled-up tumbles spin around the pet's middle; climbing pivots so the feet meet the wall.
