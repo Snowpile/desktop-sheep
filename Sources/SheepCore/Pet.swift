@@ -756,7 +756,7 @@ public struct Pet: Sendable {
         case .menuNap: return 8...20
         case .hang: return 2...5
         case .hunt: return 6...9
-        case .devour: return 2.4...2.4
+        case .devour: return 4...4
         case .eaten: return 8...14
         case .fall, .dragged, .parachute, .meteor, .jetpack, .countdown, .finale, .climb: return .infinity ... .infinity
         }
