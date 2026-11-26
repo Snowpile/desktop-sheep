@@ -20,7 +20,7 @@ public enum FinaleStyle: String, CaseIterable, Codable, Sendable {
     public var phrase: String {
         switch self {
         case .burn: return "burn to a little pile of ash"
-        case .explode: return "pop into confetti"
+        case .explode: return "blow up in a big fireball"
         case .vanish: return "vanish in a puff of smoke"
         case .balloons: return "float away on balloons"
         case .beamUp: return "get beamed up"
@@ -43,8 +43,9 @@ extension Pose {
         case burning(Int)
         case charred(Int)
         case ashPile(Int)
+        case swell(Int)
         case flash
-        case debris(Int)
+        case blast(Int)
         case poof(Int)
         case balloons(Int)
         case beam(Int)
@@ -54,6 +55,8 @@ extension Pose {
 
 extension PetArt {
     static let countdownSeconds = 3.0
+    /// Frames the pet puffs up before it blows (the boom's fuse hiss lasts as long).
+    static let swellFrames = 6
 
     static func finaleFramesPerSecond(_ style: FinaleStyle) -> Double {
         switch style {
@@ -96,7 +99,8 @@ extension PetArt {
                 + (0..<3).map { look(.charred($0), eyes: .closed) }
                 + (0..<8).map { look(.ashPile($0 / 2), shadow: false) }
         case .explode:
-            return [look(.flash), look(.flash)] + (0..<12).map { look(.debris($0), shadow: false) }
+            return (0..<swellFrames).map { look(.swell($0)) } + [look(.flash), look(.flash)]
+                + (0..<18).map { look(.blast($0), shadow: false) }
         case .vanish:
             return (0..<12).map { look(.poof($0), shadow: $0 < 2) }
         case .balloons:
@@ -111,7 +115,7 @@ extension PetArt {
     /// Whether the pet itself is drawn in this finale frame.
     static func showsPet(_ look: Pose.FinaleLook) -> Bool {
         switch look {
-        case .ashPile, .debris: return false
+        case .ashPile, .blast: return false
         case let .poof(f): return f < 2
         case let .shrink(f): return f < 12
         default: return true
@@ -134,7 +138,6 @@ extension PetArt {
         case let .burning(f): drawBodyFire(&c, frame: f)
         case let .charred(f): drawSmokeWisps(&c, frame: f)
         case let .ashPile(f): drawAshPile(&c, frame: f)
-        case let .debris(f): drawDebris(&c, frame: f)
         case let .poof(f): drawPoof(&c, frame: f)
         case let .beam(f): drawBeam(&c, frame: f, front: true)
         case let .shrink(f) where f >= 9: drawSparkle(&c, frame: f - 9)
@@ -148,9 +151,19 @@ extension PetArt {
         case let .charred(f):
             let ash = ColorCanvas.pack(paletteRGB(32)), char = ColorCanvas.pack(paletteRGB(33))
             c.recolorSolid { x, y in (x + y + f) % 4 == 0 ? ash : char }
+        case let .swell(f):
+            // Puffing up and shaking harder, flushing red every other frame.
+            c.shrink(scale: 1 + Double(f) * 0.04, aroundX: Double(width) / 2, bottom: Double(groundRow),
+                     shift: f % 2 == 0 ? -(1 + f / 3) : 1 + f / 3)
+            if f % 2 == 1 {
+                let red = paletteRGB(28).with(alpha: 0.25 + Double(f) * 0.05)
+                for y in 0..<c.height { for x in 0..<c.width where c.isSolid(x, y) { c.blend(x, y, red) } }
+            }
         case .flash:
+            c.shrink(scale: 1.28, aroundX: Double(width) / 2, bottom: Double(groundRow))
             c.recolorSolid { _, _ in ColorCanvas.pack(RGB(0xFFFFFF)) }
             c.outlineSolid(ColorCanvas.pack(paletteRGB(26)))
+            drawStarburst(&c)
         case let .beam(f):
             // Dissolve the pet in a pattern that fills in over time.
             let cut = f - 4
@@ -200,18 +213,135 @@ extension PetArt {
         }
     }
 
-    private static func drawDebris(_ c: inout PixelCanvas, frame f: Int) {
-        let center = (x: 22.0, y: 36.0)
-        let colors: [UInt8] = [21, 26, 7, 9, 6, 27, 23, 2]
-        let r = Double(f) * 2.6 + 2
-        for k in 0..<20 {
-            let angle = Double(k) * 0.9 + Double(k % 3) * 0.4
-            let speed = 0.6 + Double(k % 5) * 0.15
-            let x = center.x + cos(angle) * r * speed
-            let y = center.y - sin(angle) * r * speed + Double(f * f) * 0.12 // a little gravity
-            let size = f < 6 ? 2 : 1
-            c.pixelsFill(x: Int(x), y: Int(y), size: size, colors[k % colors.count])
+    /// Comic spikes around the white flash (sprite coordinates).
+    private static func drawStarburst(_ c: inout ColorCanvas) {
+        let yellow = paletteRGB(26), orange = paletteRGB(27)
+        for k in 0..<16 {
+            let a = Double(k) / 16 * 2 * .pi
+            let reach = k % 2 == 0 ? 37.0 : 29.0
+            for r in stride(from: 22.0, through: reach, by: 0.5) {
+                let x = Int((40 + cos(a) * r).rounded()), y = Int((50 + sin(a) * r * 0.85).rounded())
+                if y <= groundRow && !c.isSolid(x, y) { c.blend(x, y, r > reach - 4 ? orange : yellow) }
+            }
         }
+    }
+
+    /// Fireball, shockwave, flying chunks and a rising mushroom of smoke (sprite coordinates).
+    static func drawBlast(_ c: inout ColorCanvas, frame f: Int) {
+        func put(_ x: Int, _ y: Int, _ i: UInt8) { c.blend(x, y, paletteRGB(i)) }
+        func noise(_ x: Int, _ y: Int, _ seed: Int = 0) -> Int {
+            var h = x &* 374_761_393 &+ y &* 668_265_263 &+ seed &* 1_442_695_041
+            h = (h ^ (h >> 13)) &* 1_274_126_177
+            return (h ^ (h >> 16)) & 0xFF
+        }
+        let g = groundRow, cx = 40.0
+
+        // Scorch mark left on the ground.
+        for x in 18...62 where f < 15 || noise(x, g) > (f - 14) * 70 {
+            let d = abs(Double(x) - cx) / 22
+            put(x, g, d < 0.8 ? 33 : 32)
+            if d < 0.6 { put(x, g - 1, 32) }
+        }
+
+        // Shockwave racing out along the ground.
+        if f < 7 {
+            let rx = 16 + Double(f) * 7, ry = 3 + Double(f) * 0.7
+            for k in 0..<120 {
+                let a = Double(k) / 120 * 2 * .pi
+                let x = Int((cx + cos(a) * rx).rounded()), y = Int((Double(g) - 2 + sin(a) * ry).rounded())
+                if y <= g { c.blend(x, y, paletteRGB(f < 3 ? 5 : 29).with(alpha: 1 - Double(f) / 8)) }
+            }
+        }
+
+        // The fireball rises and cools into a mushroom cloud: cap, stem and a skirt of dust.
+        let heat = max(0, 1 - Double(f) / 10)
+        let capR = min(14 + Double(f) * 4, 27), capY = 52 - Double(f) * 1.6
+        let fade = f >= 12 ? Double(f - 11) / 6 : 0
+        for y in 0..<g + 1 { for x in 0..<c.width {
+            let px = Double(x) + 0.5 - cx, py = Double(y) + 0.5
+            let a = atan2(py - capY, px)
+            let wobble = 1 + 0.12 * sin(a * 5 + Double(f) * 0.9) + 0.07 * sin(a * 11 - Double(f) * 1.7)
+            var q = hypot(px, py - capY) / (capR * wobble)
+            var warm = heat
+            if f >= 4 && py > capY {
+                let stemW = 6 + 2 * sin(py * 0.5 + Double(f))
+                q = min(q, abs(px) / stemW + 0.15)
+                warm = heat * 0.7
+            }
+            if f >= 2 && f < 14 {
+                let skirt = hypot(px / (14 + Double(f) * 2.5), (py - Double(g)) / 5)
+                if skirt < q { q = skirt; warm = heat * 0.4 }
+            }
+            guard q <= 1, Double(noise(x, y)) / 255 >= fade else { continue }
+            let temp = warm * (1 - q * 0.75) + Double(noise(x, y, f) % 5 - 2) * 0.03
+            // Puffy light-to-shadow edge with a wavy boundary, lit from the top-left.
+            let shade = (px * 0.35 + py - capY) / (capR * wobble) + 0.25 * sin(px * 0.45 + Double(f) * 0.5) * cos(py * 0.4)
+            let color: UInt8
+            if q > 0.9 { color = temp > 0.3 ? 28 : 32 }
+            else if temp > 0.72 { color = 5 }
+            else if temp > 0.55 { color = 26 }
+            else if temp > 0.38 { color = 27 }
+            else if temp > 0.24 { color = 28 }
+            else if temp > 0.12 { color = 33 }
+            else { color = shade < -0.15 ? 29 : (shade < 0.45 ? 30 : 32) }
+            put(x, y, color)
+            // Embers glowing in the smoke.
+            if color >= 29 && f < 13 && noise(x, y, f) % 37 == 0 { put(x, y, f % 2 == 0 ? 27 : 26) }
+        } }
+
+        // Sparks shooting out of the first burst.
+        if f < 5 {
+            for k in 0..<14 {
+                let a = Double(k) / 14 * 2 * .pi + 0.2
+                let r0 = capR + Double(f) * 3
+                for r in stride(from: r0, through: r0 + Double(6 - f), by: 0.5) {
+                    let x = Int((cx + cos(a) * r).rounded()), y = Int((capY + sin(a) * r).rounded())
+                    if y <= g { put(x, y, f < 2 ? 5 : 26) }
+                }
+            }
+        }
+
+        // Chunks of the pet flung out on arcs, trailing smoke, landing on the ground.
+        if f < 14 {
+            let t = Double(f + 2)
+            for k in 0..<9 {
+                let vx = (Double(k) - 4) * 1.6 + (k % 2 == 0 ? 0.5 : -0.5)
+                let vy = -5.5 + Double(k % 3) * 1.4
+                let x = Int((cx + vx * t).rounded())
+                let y = min(Int((50 + vy * t + 0.35 * t * t).rounded()), g - 2)
+                for s in 1...2 { put(x - Int((vx * Double(s)).rounded()), y + 1 - Int((vy * Double(s) * 0.5).rounded()), 30) }
+                // A round tuft of fur (or a charred lump) with an outline.
+                let tuft = [(0, -1), (1, -1), (-1, 0), (0, 0), (1, 0), (2, 0), (0, 1), (1, 1)]
+                for (dx, dy) in tuft { for (ox, oy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] { put(x + dx + ox, y + dy + oy, 1) } }
+                for (dx, dy) in tuft { put(x + dx, y + dy, k % 4 == 0 ? (dy < 1 ? 33 : 32) : (dy < 1 ? 2 : 3)) }
+            }
+        }
+
+        // "BOOM!" while the fireball is hot.
+        if f < 9 { drawBoomText(&c, top: 3 - min(f, 2) + (f % 2), outline: 1) }
+    }
+
+    private static let boomGlyphs: [[String]] = [
+        ["###.", "#..#", "###.", "#..#", "###."],
+        [".##.", "#..#", "#..#", "#..#", ".##."],
+        [".##.", "#..#", "#..#", "#..#", ".##."],
+        ["#...#", "##.##", "#.#.#", "#...#", "#...#"],
+        ["#", "#", "#", ".", "#"],
+    ]
+
+    /// Big comic lettering, two sprite pixels per glyph pixel, centered.
+    private static func drawBoomText(_ c: inout ColorCanvas, top: Int, outline: UInt8) {
+        let widths = boomGlyphs.map { $0[0].count * 2 }
+        var x0 = (width - (widths.reduce(0, +) + (widths.count - 1) * 2)) / 2
+        var fill: [(Int, Int, UInt8)] = []
+        for (glyph, w) in zip(boomGlyphs, widths) {
+            for (row, line) in glyph.enumerated() { for (col, ch) in line.enumerated() where ch == "#" {
+                for dy in 0..<2 { for dx in 0..<2 { fill.append((x0 + col * 2 + dx, top + row * 2 + dy, row < 3 ? 26 : 27)) } }
+            } }
+            x0 += w + 2
+        }
+        for (x, y, _) in fill { for dy in -1...1 { for dx in -1...1 { c.blend(x + dx, y + dy, paletteRGB(outline)) } } }
+        for (x, y, i) in fill { c.blend(x, y, paletteRGB(i)) }
     }
 
     private static func drawPoof(_ c: inout PixelCanvas, frame f: Int) {
