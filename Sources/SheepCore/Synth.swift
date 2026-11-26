@@ -2,7 +2,7 @@ import Foundation
 
 /// Short original sound effects, synthesized from oscillators and noise (no recordings).
 public enum SoundEffect: String, CaseIterable, Sendable {
-    case bleat, meow, bark, squeak, chirp, thud, poof, boom, sizzle, pop, beam
+    case bleat, meow, bark, squeak, chirp, thud, poof, boom, sizzle, pop, beam, oink, honk, trumpet
 
     /// The call sound for an animal.
     public static func call(for animal: Animal) -> SoundEffect {
@@ -12,6 +12,9 @@ public enum SoundEffect: String, CaseIterable, Sendable {
         case .dog: return .bark
         case .bunny: return .squeak
         case .redPanda: return .chirp
+        case .pig: return .oink
+        case .hippo: return .honk
+        case .elephant: return .trumpet
         }
     }
 
@@ -71,6 +74,28 @@ public enum Synth {
             for k in 0..<3 {
                 out += tone(seconds: 0.06, harmonics: [1, 0.3]) { t, d in (1300 + Double(k) * 120 + 600 * (t / d), envelope(t, d, attack: 0.004, release: 0.03)) }
                 out += Array(repeating: 0, count: Int(0.04 * sampleRate))
+            }
+        case .oink:
+            // Two short nasal grunts with a raspy edge.
+            out = []
+            for k in 0..<2 {
+                let grunt = tone(seconds: 0.15, harmonics: [1, 0.8, 0.7, 0.55, 0.45, 0.35, 0.25]) { t, d in
+                    (230 - Double(k) * 25 - 60 * (t / d), envelope(t, d, attack: 0.01, release: 0.07))
+                }
+                out += grunt.enumerated().map { i, s in s * 0.8 + white() * 0.2 * envelope(Double(i) / sampleRate, 0.15, attack: 0.01, release: 0.07) }
+                if k == 0 { out += Array(repeating: 0, count: Int(0.07 * sampleRate)) }
+            }
+        case .honk:
+            // A low, wobbly baby-hippo honk.
+            out = tone(seconds: 0.4, harmonics: [1, 0.75, 0.5, 0.3, 0.15]) { t, d in
+                (150 - 40 * (t / d) + sin(t * 2 * .pi * 9) * 10, envelope(t, d, attack: 0.02, release: 0.15))
+            }
+        case .trumpet:
+            // A brassy trumpet that swoops up and wavers.
+            out = tone(seconds: 0.7, harmonics: [1, 0.9, 0.8, 0.65, 0.5, 0.4, 0.3, 0.2]) { t, d in
+                let x = t / d
+                return (380 + 220 * min(x * 4, 1) - 60 * max(0, x - 0.6) + sin(t * 2 * .pi * 7) * 12,
+                        envelope(t, d, attack: 0.04, release: 0.25))
             }
         case .thud:
             var lp = 0.0

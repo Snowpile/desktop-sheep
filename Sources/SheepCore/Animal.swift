@@ -1,6 +1,6 @@
 /// The kinds of pet. Every animal supports the same behaviors, with its own flavor.
 public enum Animal: String, CaseIterable, Codable, Sendable {
-    case sheep, cat, dog, bunny, redPanda
+    case sheep, cat, dog, bunny, redPanda, pig, hippo, elephant
 
     public var title: String {
         switch self {
@@ -9,6 +9,9 @@ public enum Animal: String, CaseIterable, Codable, Sendable {
         case .dog: return "Dog"
         case .bunny: return "Bunny"
         case .redPanda: return "Red Panda"
+        case .pig: return "Pig"
+        case .hippo: return "Baby Hippo"
+        case .elephant: return "Elephant"
         }
     }
 
@@ -20,6 +23,9 @@ public enum Animal: String, CaseIterable, Codable, Sendable {
         case .dog: return "bark"
         case .bunny: return "squeak"
         case .redPanda: return "chirp"
+        case .pig: return "oink"
+        case .hippo: return "honk"
+        case .elephant: return "trumpet"
         }
     }
 
@@ -31,6 +37,9 @@ public enum Animal: String, CaseIterable, Codable, Sendable {
         case .dog: return "a bone"
         case .bunny: return "a carrot"
         case .redPanda: return "bamboo"
+        case .pig: return "an apple"
+        case .hippo: return "watermelon"
+        case .elephant: return "peanuts"
         }
     }
 
