@@ -2,7 +2,7 @@ import Foundation
 
 /// Short original sound effects, synthesized from oscillators and noise (no recordings).
 public enum SoundEffect: String, CaseIterable, Sendable {
-    case bleat, meow, bark, squeak, chirp, thud, poof, boom, sizzle, pop, beam, oink, honk, trumpet
+    case bleat, meow, bark, squeak, chirp, thud, poof, boom, sizzle, pop, beam, oink, honk, trumpet, chitter
 
     /// The call sound for an animal.
     public static func call(for animal: Animal) -> SoundEffect {
@@ -15,6 +15,7 @@ public enum SoundEffect: String, CaseIterable, Sendable {
         case .pig: return .oink
         case .hippo: return .honk
         case .elephant: return .trumpet
+        case .flyingSquirrel: return .chitter
         }
     }
 
@@ -96,6 +97,15 @@ public enum Synth {
                 let x = t / d
                 return (380 + 220 * min(x * 4, 1) - 60 * max(0, x - 0.6) + sin(t * 2 * .pi * 7) * 12,
                         envelope(t, d, attack: 0.04, release: 0.25))
+            }
+        case .chitter:
+            // A fast run of tiny high squeaks.
+            out = []
+            for k in 0..<6 {
+                out += tone(seconds: 0.035, harmonics: [1, 0.4, 0.2]) { t, d in
+                    (2600 - Double(k % 2) * 400 - 500 * (t / d), envelope(t, d, attack: 0.003, release: 0.015))
+                }
+                out += Array(repeating: 0, count: Int(0.025 * sampleRate))
             }
         case .thud:
             var lp = 0.0

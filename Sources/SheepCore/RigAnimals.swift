@@ -63,6 +63,10 @@ private func spec(_ s: Animal) -> Spec {
         return Spec(bodyC: RigPoint(x: 26, y: 39), bodyR: (15.5, 10.5), hipX: 18, shoulderX: 34, legTop: 47, legW: (3.0, 2.8),
                     headC: RigPoint(x: 43.5, y: 30), headR: (8.5, 8.2),
                     fur: RGB(0xA9B1C2), dark: RGB(0x7F889C), belly: RGB(0xBFC6D4), leg: RGB(0xA9B1C2), paw: RGB(0xEDE6D8))
+    case .flyingSquirrel:
+        return Spec(bodyC: RigPoint(x: 28, y: 46), bodyR: (12, 7.5), hipX: 21, shoulderX: 34, legTop: 50, legW: (1.7, 1.4),
+                    headC: RigPoint(x: 42.5, y: 38), headR: (7.2, 6.6),
+                    fur: RGB(0xA38F7E), dark: RGB(0x6B584B), belly: RGB(0xF4EDE2), leg: RGB(0xA38F7E), paw: RGB(0xF4EDE2))
     }
 }
 
@@ -84,6 +88,8 @@ private struct Builder {
     var bodyAngle = 0.0
     var headCenter: RigPoint = RigPoint(x: 0, y: 0)
     var headAngle = 0.0
+    /// Where each leg's foot ended up (standing legs only).
+    var feet = [RigPoint](repeating: RigPoint(x: 0, y: 0), count: 4)
 
     init(species: Animal, spec: Spec, pose: RigPose) {
         self.species = species
@@ -197,6 +203,7 @@ private struct Builder {
                 let len = max(ground - top.y - pose.lift[i], 4)
                 var foot = top + RigPoint(x: sin(pose.swing[i]) * len, y: cos(pose.swing[i]) * len)
                 foot.y = min(foot.y, ground - pose.lift[i])
+                feet[i] = foot
                 leg(top: top, foot: foot, far: far, back: i < 2)
             }
         case .sitting:
@@ -273,6 +280,18 @@ private struct Builder {
         case .redPanda:
             add(.ellipse(c: body(RigPoint(x: spec.bodyC.x - 1, y: spec.bodyC.y - spec.bodyR.y * 0.55)), rx: 9, ry: 1.6, angle: bodyAngle),
                 spec.fur.shade(0.28), G.body, decal: true)
+        case .flyingSquirrel:
+            // The gliding flap: stretched out between the legs mid-air, folded along the side otherwise.
+            let hip = body(RigPoint(x: spec.hipX, y: spec.bodyC.y)), shoulder = body(RigPoint(x: spec.shoulderX, y: spec.bodyC.y))
+            if pose.mode == .standing && pose.swing[3] > 0.4 {
+                let back = feet[1] + RigPoint(x: 0, y: -1.5), front = feet[3] + RigPoint(x: 0, y: -1.5)
+                add(.triangle(hip, shoulder, front, round: 0.6), spec.fur.shade(-0.06), G.body)
+                add(.triangle(hip, front, back, round: 0.6), spec.fur.shade(-0.06), G.body)
+                add(.line([back, back * 0.5 + front * 0.5 + RigPoint(x: 0, y: -1.2), front], width: 0.8), spec.belly, G.body, decal: true)
+            } else {
+                let l = hip + RigPoint(x: -2, y: ry * 0.25), r = shoulder + RigPoint(x: 1, y: ry * 0.25)
+                add(.line([l, (l + r) * 0.5 + RigPoint(x: 0, y: 1), r], width: 0.9), spec.dark, G.body, decal: true)
+            }
         default:
             break
         }
@@ -330,6 +349,14 @@ private struct Builder {
                 return RigPoint(x: -2 - Double(k) * 0.35 - sin(a) * 1.8, y: -1 + cos(a) * 1.8 - 1.8)
             })
             for (u, v) in zip(pts, pts.dropFirst()) { add(.capsule(a: u, b: v, ra: 0.9, rb: 0.9), spec.fur.shade(-0.08), G.tail) }
+        case .flyingSquirrel:
+            // A flat, fluffy tail held out behind with a gentle upward curve.
+            let pts = chain([RigPoint(x: 1, y: 1), RigPoint(x: -4, y: 0), RigPoint(x: -9, y: -2), RigPoint(x: -13, y: -6)])
+            let radii = [2.6, 3.2, 3.3, 2.6]
+            for k in 0..<(pts.count - 1) {
+                add(.capsule(a: pts[k], b: pts[k + 1], ra: radii[k], rb: radii[k + 1]), spec.fur, G.tail)
+            }
+            add(.capsule(a: pts[2], b: pts[3], ra: 1.4, rb: 1.2), spec.dark, G.tail, decal: true)
         case .hippo, .elephant:
             // A short thin tail with a dark tuft.
             let pts = chain([RigPoint(x: 0, y: 0), RigPoint(x: -2.5, y: 3), RigPoint(x: -3, y: 7)])
@@ -494,6 +521,23 @@ private struct Builder {
             eyes(near: head(3.4, -2.0), far: head(0.2, -2.2), sclera: false)
             mouth(at: head(4.4, 6.0), color: spec.dark.shade(-0.2))
             blush(head(2.4, 2.6))
+        case .flyingSquirrel:
+            // Rounded ears, a pale face and the big dark eyes of a night glider.
+            for (far, dx) in [(true, -3.6), (false, -0.6)] {
+                let c = head(dx, -6.2)
+                add(.ellipse(c: c, rx: 2.0, ry: 2.6, angle: -0.2 + ear), far ? spec.fur.shade(-0.2) : spec.fur, far ? G.farEar : G.head)
+                if !far { add(.ellipse(c: c + RigPoint(x: 0.2, y: 0.4), rx: 1.0, ry: 1.5, angle: -0.2 + ear), RGB(0xE8B7AE), G.head, decal: true) }
+            }
+            add(.ellipse(c: head(0, 0), rx: rx, ry: ry, angle: headAngle), spec.fur, G.head)
+            add(.ellipse(c: head(3.4, 3.2), rx: 4.4, ry: 3.0, angle: headAngle), spec.belly, G.head, decal: true)
+            if pose.eyes == .open {
+                for p in [head(-1.8, -1.2), head(2.8, -1.0)] { pixels(["kkw", "kkk", "kkk"], centeredAt: p) }
+            } else {
+                eyes(near: head(2.6, -1.0), far: head(-2.0, -1.2), sclera: false)
+            }
+            add(.ellipse(c: head(7.0, 1.4), rx: 0.9, ry: 0.7, angle: 0), RGB(0x3A2A2A), G.head, decal: true)
+            mouth(at: head(5.8, 3.6), color: spec.dark)
+            blush(head(0.6, 2.6))
         }
     }
 
@@ -597,6 +641,11 @@ private struct Builder {
                 for (dx, dy) in [(-1.5, -1.8), (1.2, -1.6), (0, -3.0)] {
                     add(.pixel(x: Int((c.x + dx).rounded(.down)), y: Int((c.y + dy).rounded(.down))), RGB(0x2A1E20), G.fx, decal: true)
                 }
+            case .flyingSquirrel:
+                let c = RigPoint(x: x + 1, y: ground - 2.2)
+                add(.ellipse(c: c, rx: 1.8, ry: 2.2, angle: 0), RGB(0xC08A4A), G.fx)
+                add(.ellipse(c: c + RigPoint(x: 0, y: -1.8), rx: 2.2, ry: 1.0, angle: 0), RGB(0x7A5030), G.fx)
+                add(.capsule(a: c + RigPoint(x: 0, y: -2.6), b: c + RigPoint(x: 0.4, y: -3.6), ra: 0.35, rb: 0.3), RGB(0x5A3A22), G.fx)
             case .elephant:
                 for (dx, a) in [(-2.5, 0.3), (2.0, -0.2)] {
                     let c = RigPoint(x: x + dx, y: ground - 1.2)

@@ -1,6 +1,6 @@
 # Desktop Sheep
 
-A small pixel-art sheep (or cat, dog, bunny, red panda, pig, baby hippo or elephant) that lives on your macOS desktop,
+A small pixel-art sheep (or cat, dog, bunny, red panda, pig, baby hippo, elephant or flying squirrel) that lives on your macOS desktop,
 inspired by classic 90s desktop pets. All art and code are original.
 
 The sheep wanders along the bottom of the screen (just above the Dock) and along the top edges of
@@ -12,10 +12,11 @@ window it was standing on moves or closes. Pick it up with the mouse and drop or
 - Transparent, borderless, always-on-top sheep; clicks pass through everywhere except the sheep.
 - Visible on all Spaces, no Dock icon. A menu-bar sheep offers **Add Pet**, **Remove Pet**,
   **Animal (All Pets)**, **Walk on Windows**, **Settings…** and **Quit**.
-- Eight animals with their own flavor: the sheep bleats and grazes, the cat meows and eats fish,
+- Nine animals with their own flavor: the sheep bleats and grazes, the cat meows and eats fish,
   the dog barks and chews a bone, the bunny hops and nibbles a carrot, the red panda chirps and
   munches bamboo, the pig oinks over an apple, the baby hippo honks at watermelon, and the
-  elephant trumpets and snacks on peanuts. Pick one for all pets (or **Mixed**) from the menu or Settings; right-click a
+  elephant trumpets and snacks on peanuts, and the flying squirrel chitters, nibbles an acorn and
+  spreads its gliding flaps when it falls. Pick one for all pets (or **Mixed**) from the menu or Settings; right-click a
   single pet to change just that one.
 - Time of day and seasons: pets sleep more (and longer) at night and are livelier in the
   morning; in December they wear Santa hats and in October pumpkins keep resting pets company
