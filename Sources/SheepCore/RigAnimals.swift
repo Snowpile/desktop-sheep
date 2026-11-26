@@ -6,6 +6,8 @@ enum G {
 }
 
 private let ground = 60.0
+/// Rig row a hanging pet's front paws grip (`PetArt.hangGripRow` in sprite rows).
+private let gripY = 25.0
 
 /// Per-species proportions and colors.
 private struct Spec {
@@ -171,6 +173,14 @@ private struct Builder {
             for i in 0..<4 {
                 let far = i % 2 == 0
                 let baseX = (i < 2 ? spec.hipX : spec.shoulderX) + (far ? spec.farOffset : 0)
+                if cos(pose.swing[i]) < 0 {
+                    // Reaching up (hanging from an edge): the leg leaves from the top of the shoulder
+                    // so it doesn't cross the body, and the paw stays on the grip line.
+                    let top = body(RigPoint(x: baseX + 1, y: spec.bodyC.y - spec.bodyR.y * 0.45))
+                    let foot = RigPoint(x: top.x + sin(pose.swing[i]) * (top.y - gripY), y: gripY)
+                    leg(top: top, foot: foot, far: far, back: i < 2)
+                    continue
+                }
                 let top = body(RigPoint(x: baseX, y: spec.legTop - 2))
                 let len = max(ground - top.y - pose.lift[i], 4)
                 var foot = top + RigPoint(x: sin(pose.swing[i]) * len, y: cos(pose.swing[i]) * len)
@@ -323,12 +333,11 @@ private struct Builder {
             for (dx, dy, r) in [(-3.0, -6.0, 3.6), (0.6, -7.2, 3.6), (3.6, -5.8, 3.0), (-5.0, -3.2, 2.6)] {
                 add(.ellipse(c: head(dx, dy), rx: r, ry: r, angle: 0), spec.fur, G.head)
             }
-            add(.ellipse(c: head(6.0, -1.6), rx: 4.4, ry: 1.9, angle: 0.45 - ear), face, G.nearEar)
-            add(.ellipse(c: head(6.6, -1.3), rx: 2.6, ry: 0.85, angle: 0.45 - ear), pink, G.nearEar, decal: true)
-            eyes(near: head(1.6, -0.6), far: head(-2.4, -0.9), size: 1.0, sclera: true)
+            add(.ellipse(c: head(-6.4, 0.4), rx: 4.0, ry: 1.9, angle: -0.3 - ear), face, G.nearEar)
+            add(.ellipse(c: head(-6.9, 0.6), rx: 2.3, ry: 0.8, angle: -0.3 - ear), pink, G.nearEar, decal: true)
+            eyes(near: head(2.4, -0.2), far: head(-1.6, -0.4), sclera: true)
             add(.ellipse(c: head(6.8, 2.6), rx: 0.7, ry: 0.5, angle: 0), RGB(0x1E181F), G.head, decal: true)
             mouth(at: head(5.5, 5.6), color: pink)
-            blush(head(0.5, 2.8))
         case .cat:
             for (far, base) in [(true, -4.5), (false, 3.0)] {
                 let tilt = (far ? -0.2 : 0.15) + ear * (far ? 1 : -1) * 0.6
@@ -337,7 +346,7 @@ private struct Builder {
                 let rot = { (p: RigPoint) in p.rotated(tilt, around: pivotPoint) }
                 add(.triangle(rot(a), rot(tip), rot(b), round: 0.9), far ? spec.fur.shade(-0.2) : spec.fur, far ? G.farEar : G.head)
                 let ia = head(base - 1.6, -5.6), itip = head(base + 0.2, -10.4), ib = head(base + 1.9, -5.9)
-                add(.triangle(rot(ia), rot(itip), rot(ib), round: 0.4), pink, far ? G.farEar : G.head, decal: true)
+                add(.triangle(rot(ia), rot(itip), rot(ib), round: 0.4), far ? pink.shade(-0.3) : pink, far ? G.farEar : G.head, decal: true)
             }
             add(.ellipse(c: head(0, 0), rx: rx, ry: ry, angle: headAngle), spec.fur, G.head)
             add(.ellipse(c: head(-4.5, 3.8), rx: 3.6, ry: 2.6, angle: 0.3), spec.fur, G.head) // cheek fluff
@@ -345,7 +354,7 @@ private struct Builder {
             for dx in [-1.6, 0.4] {
                 add(.capsule(a: head(dx, -7.0), b: head(dx + 0.3, -4.4), ra: 0.7, rb: 0.45), spec.dark, G.head, decal: true)
             }
-            eyes(near: head(3.0, -1.0), far: head(-2.8, -1.2), size: 1.15, sclera: false)
+            eyes(near: head(3.0, -1.0), far: head(-2.8, -1.2), sclera: false)
             add(.triangle(head(5.4, 1.4), head(7.4, 1.4), head(6.4, 2.7), round: 0.3), pink.shade(-0.1), G.head, decal: true)
             mouth(at: head(6.2, 4.0), color: pink.shade(-0.3))
             for (dy, ang) in [(2.6, -0.15), (3.8, 0.12)] {
@@ -360,7 +369,7 @@ private struct Builder {
             add(.ellipse(c: head(4.2, 3.6), rx: 5.0, ry: 3.8, angle: headAngle + 0.1), spec.belly, G.head)
             add(.capsule(a: head(1.2, -7.4), b: head(2.6, 0.5), ra: 1.2, rb: 2.2), spec.belly, G.head, decal: true) // blaze
             add(.ellipse(c: head(-4.0, 3.2), rx: 2.9, ry: 6.2, angle: 0.18 + ear * 0.6), earC, G.nearEar)
-            eyes(near: head(3.2, -1.6), far: head(-0.6, -1.9), size: 1.1, sclera: false)
+            eyes(near: head(3.2, -1.6), far: head(-0.6, -1.9), sclera: false)
             add(.ellipse(c: head(8.6, 1.9), rx: 1.5, ry: 1.1, angle: 0), RGB(0x241A1C), G.head, decal: true)
             mouth(at: head(7.2, 5.0), color: RGB(0x8E4A3E))
             if pose.mouthOpen { add(.ellipse(c: head(7.0, 7.0), rx: 1.2, ry: 1.8, angle: 0), pink, G.fx) }
@@ -381,7 +390,7 @@ private struct Builder {
             }
             add(.ellipse(c: head(0, 0), rx: rx, ry: ry, angle: headAngle), spec.fur, G.head)
             add(.ellipse(c: head(3.6, 2.8), rx: 3.8, ry: 3.0, angle: headAngle), spec.belly, G.head, decal: true)
-            eyes(near: head(2.4, -1.2), far: head(-2.4, -1.4), size: 1.15, sclera: false)
+            eyes(near: head(2.4, -1.2), far: head(-2.4, -1.4), sclera: false)
             add(.ellipse(c: head(6.6, 1.3), rx: 1.0, ry: 0.75, angle: 0), pink.shade(-0.1), G.head, decal: true)
             mouth(at: head(6.1, 3.4), color: pink.shade(-0.3))
             blush(head(0.6, 2.4))
@@ -392,38 +401,42 @@ private struct Builder {
                 let pivotPoint = head(base, -5)
                 let rot = { (p: RigPoint) in p.rotated(tilt, around: pivotPoint) }
                 add(.triangle(rot(a), rot(tip), rot(b), round: 1.6), white, far ? G.farEar : G.head)
-                add(.triangle(rot(head(base - 1.7, -5.0)), rot(head(base, -8.6)), rot(head(base + 1.7, -5.2)), round: 0.7),
-                    spec.dark, far ? G.farEar : G.head, decal: true)
+                add(.triangle(rot(head(base - 1.3, -5.2)), rot(head(base, -8.0)), rot(head(base + 1.3, -5.4)), round: 0.5),
+                    spec.fur.shade(-0.45), far ? G.farEar : G.head, decal: true)
             }
             add(.ellipse(c: head(0, 0), rx: rx, ry: ry, angle: headAngle), spec.fur, G.head)
             add(.ellipse(c: head(3.8, 3.4), rx: 5.0, ry: 3.4, angle: headAngle), white, G.head, decal: true)
-            add(.ellipse(c: head(3.4, -3.2), rx: 1.9, ry: 1.1, angle: -0.2), white, G.head, decal: true)
-            add(.ellipse(c: head(-2.2, -3.5), rx: 1.6, ry: 1.0, angle: 0.2), white, G.head, decal: true)
+            add(.ellipse(c: head(3.6, -4.4), rx: 1.4, ry: 0.8, angle: -0.2), white, G.head, decal: true)
+            add(.ellipse(c: head(-2.2, -4.6), rx: 1.2, ry: 0.75, angle: 0.2), white, G.head, decal: true)
             for (dx, lean) in [(3.0, 0.5), (-2.4, -0.3)] {
                 add(.capsule(a: head(dx, 1.0), b: head(dx + lean, 3.6), ra: 0.75, rb: 0.45), spec.fur.shade(-0.5), G.head, decal: true)
             }
-            eyes(near: head(3.0, -0.8), far: head(-2.4, -1.0), size: 1.1, sclera: false)
+            eyes(near: head(3.0, -0.8), far: head(-2.4, -1.0), sclera: false)
             add(.ellipse(c: head(8.2, 2.0), rx: 1.3, ry: 0.95, angle: 0), RGB(0x241A1C), G.head, decal: true)
             mouth(at: head(7.0, 4.6), color: RGB(0x7A3B30))
         }
     }
 
-    mutating func eyes(near: RigPoint, far: RigPoint, size: Double, sclera: Bool) {
-        for (p, s) in [(far, size * 0.85), (near, size)] {
-            switch pose.eyes {
-            case .open, .wide:
-                let wide = pose.eyes == .wide
-                if sclera || wide {
-                    add(.ellipse(c: p, rx: 1.55 * s, ry: 1.9 * s, angle: 0), RGB(0xFFFFFF), G.head, decal: true)
-                    add(.ellipse(c: p + RigPoint(x: 0.35 * s, y: 0.2 * s), rx: 0.95 * s, ry: 1.25 * s, angle: 0), spec.eye, G.head, decal: true)
-                } else {
-                    add(.ellipse(c: p, rx: 1.25 * s, ry: 1.7 * s, angle: 0), spec.eye, G.head, decal: true)
-                }
-                add(.ellipse(c: p + RigPoint(x: 0.45 * s, y: -0.7 * s), rx: 0.5 * s, ry: 0.5 * s, angle: 0), RGB(0xFFFFFF), G.head, decal: true)
-            case .closed:
-                add(.line([p + RigPoint(x: -1.4 * s, y: 0.2), p + RigPoint(x: 0, y: 0.9 * s), p + RigPoint(x: 1.4 * s, y: 0.2)], width: 0.75), spec.eye, G.head, decal: true)
-            case .happy:
-                add(.line([p + RigPoint(x: -1.4 * s, y: 0.8), p + RigPoint(x: 0, y: -0.6 * s), p + RigPoint(x: 1.4 * s, y: 0.8)], width: 0.75), spec.eye, G.head, decal: true)
+    /// Eyes are hand-placed pixel stamps snapped to the grid, so they stay crisp and
+    /// symmetric at 64x64 instead of rasterizing into uneven blobs.
+    /// `k` = pupil, `w` = white (shine or sclera), `.` = untouched.
+    mutating func eyes(near: RigPoint, far: RigPoint, sclera: Bool) {
+        let stamp: [String]
+        switch pose.eyes {
+        case .open: stamp = sclera ? ["ww", "wk", "wk"] : ["kw", "kk", "kk"]
+        case .wide: stamp = ["www", "wkw", "www"]
+        case .closed: stamp = ["k.k", ".k."]
+        case .happy: stamp = [".k.", "k.k"]
+        }
+        for p in [far, near] { pixels(stamp, centeredAt: p) }
+    }
+
+    mutating func pixels(_ rows: [String], centeredAt p: RigPoint) {
+        let w = rows.map(\.count).max() ?? 0
+        let x0 = Int((p.x - Double(w) / 2).rounded()), y0 = Int((p.y - Double(rows.count) / 2).rounded())
+        for (dy, row) in rows.enumerated() {
+            for (dx, ch) in row.enumerated() where ch != "." {
+                add(.pixel(x: x0 + dx, y: y0 + dy), ch == "w" ? RGB(0xFFFFFF) : spec.eye, G.head, decal: true)
             }
         }
     }
@@ -494,4 +507,11 @@ private struct Builder {
             }
         }
     }
+}
+
+/// Where the head sits in a pose (for preview crops).
+public func buildHeadCenter(_ species: Animal, _ pose: RigPose) -> RigPoint {
+    var b = Builder(species: species, spec: spec(species), pose: pose)
+    b.build()
+    return b.headCenter
 }
